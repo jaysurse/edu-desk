@@ -5,6 +5,7 @@ import {
   FaUserCircle,
   FaSignOutAlt,
   FaUpload,
+  FaFilter,
 } from "react-icons/fa";
 import { GiHamburgerMenu } from "react-icons/gi";
 import { IoMdClose } from "react-icons/io";
@@ -15,6 +16,8 @@ const Navbar = ({
   onLogoutClick,
   darkMode,
   onToggleTheme,
+  selectedDept,
+  setSelectedDept, // 👈 Add this prop
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -42,7 +45,7 @@ const Navbar = ({
           Edu<span className="text-gray-800 dark:text-white">Desk 📚</span>
         </div>
 
-        {/* Desktop Nav Links */}
+        {/* Desktop Nav Links + Filter */}
         <ul className="hidden md:flex gap-6 text-gray-700 dark:text-gray-200 font-medium items-center transition-all">
           {navLinks.map((link) => (
             <li key={link.name}>
@@ -54,6 +57,26 @@ const Navbar = ({
               </a>
             </li>
           ))}
+
+          {/* 👇 Department Filter - Desktop */}
+          <select
+            value={selectedDept}
+            onChange={(e) => {
+              setSelectedDept(e.target.value);
+              // Scroll to Notes section
+              const notesSection = document.getElementById("notes");
+              if (notesSection) {
+                notesSection.scrollIntoView({ behavior: "smooth" });
+              }
+            }}
+            className="px-3 py-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-300 dark:border-gray-600"
+          >
+            <option value="All">🏢 All Departments</option>
+            <option value="Computer">💻 Computer</option>
+            <option value="IT">🖥️ IT</option>
+            <option value="Civil">🏗️ Civil</option>
+            <option value="ENTC">📡 ENTC</option>
+          </select>
 
           {user ? (
             <>
@@ -114,6 +137,22 @@ const Navbar = ({
                 </a>
               </li>
             ))}
+
+            {/* 👇 Department Filter - Mobile */}
+            <li className="flex items-center gap-2">
+              <FaFilter className="text-gray-500 dark:text-gray-300" />
+              <select
+                value={selectedDept}
+                onChange={(e) => setSelectedDept(e.target.value)}
+                className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-white"
+              >
+                <option value="All">All</option>
+                <option value="Computer">Computer</option>
+                <option value="IT">IT</option>
+                <option value="ENTC">ENTC</option>
+                <option value="Civil">Civil</option>
+              </select>
+            </li>
 
             {user ? (
               <>

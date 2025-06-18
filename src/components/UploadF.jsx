@@ -7,6 +7,7 @@ const UploadForm = ({ addNote, notes }) => {
     title: "",
     subject: "",
     uploader: "",
+    department: "",
     file: null,
   });
 
@@ -27,6 +28,7 @@ const UploadForm = ({ addNote, notes }) => {
       !formData.title ||
       !formData.subject ||
       !formData.uploader ||
+      !formData.department ||
       !formData.file
     ) {
       alert("Please fill all fields and upload a file.");
@@ -38,12 +40,19 @@ const UploadForm = ({ addNote, notes }) => {
       title: formData.title,
       subject: formData.subject,
       uploader: formData.uploader,
+      department: formData.department,
       fileName: formData.file.name,
     };
 
     addNote(newNote); // 🔥 Pass to parent App.jsx
 
-    setFormData({ title: "", subject: "", uploader: "", file: null });
+    setFormData({
+      title: "",
+      subject: "",
+      uploader: "",
+      department: "",
+      file: null,
+    });
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
   };
@@ -101,6 +110,20 @@ const UploadForm = ({ addNote, notes }) => {
             className="w-full p-3 rounded border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-pink-400"
             required
           />
+
+          <select
+            name="department"
+            value={formData.department}
+            onChange={handleChange}
+            className="w-full p-3 rounded border border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-400"
+            required
+          >
+            <option value="">Select Department</option>
+            <option value="Computer">💻 Computer</option>
+            <option value="IT">🖥️ IT</option>
+            <option value="Civil">🏗️ Civil</option>
+            <option value="ENTC">📡 ENTC</option>
+          </select>
 
           <input
             type="file"

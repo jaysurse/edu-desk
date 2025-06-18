@@ -22,6 +22,8 @@ function App() {
     return JSON.parse(localStorage.getItem("notes")) || [];
   });
 
+  const [selectedDept, setSelectedDept] = useState("All");
+
   const addNote = (note) => {
     const updatedNotes = [note, ...notes];
     setNotes(updatedNotes);
@@ -65,6 +67,8 @@ function App() {
         onLogoutClick={handleLogout}
         darkMode={darkMode}
         onToggleTheme={() => setDarkMode((prev) => !prev)}
+        selectedDept={selectedDept} // 👈 new
+        setSelectedDept={setSelectedDept} // 👈 new
       />
 
       {/* Auth Modal (styled and working) */}
@@ -80,7 +84,11 @@ function App() {
         <Features />
       </div>
       <div id="notes">
-        <NotesPreview notes={notes} deleteNote={deleteNote} />
+        <NotesPreview
+          notes={notes}
+          deleteNote={deleteNote}
+          selectedDept={selectedDept}
+        />
       </div>
       <div id="about">
         <About />
