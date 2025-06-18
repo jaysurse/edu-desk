@@ -1,0 +1,163 @@
+import { useState, useEffect } from "react";
+import {
+  FaSun,
+  FaMoon,
+  FaUserCircle,
+  FaSignOutAlt,
+  FaUpload,
+} from "react-icons/fa";
+import { GiHamburgerMenu } from "react-icons/gi";
+import { IoMdClose } from "react-icons/io";
+
+const Navbar = ({
+  onLoginClick,
+  user,
+  onLogoutClick,
+  darkMode,
+  onToggleTheme,
+}) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "auto";
+  }, [menuOpen]);
+
+  const navLinks = [
+    { name: "Home", href: "#home" },
+    { name: "Features", href: "#features" },
+    { name: "Notes", href: "#notes" },
+    { name: "About", href: "#about" },
+    { name: "Contact", href: "#contact" },
+    {
+      name: "Upload",
+      href: "#upload",
+      icon: <FaUpload className="inline ml-1" />,
+    },
+  ];
+
+  return (
+    <nav className="bg-white dark:bg-gray-900 shadow-md fixed w-full top-0 z-50 transition-colors duration-300">
+      <div className="w-full px-6 md:px-12 py-4 flex items-center justify-between">
+        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          Edu<span className="text-gray-800 dark:text-white">Desk 📚</span>
+        </div>
+
+        {/* Desktop Nav Links */}
+        <ul className="hidden md:flex gap-6 text-gray-700 dark:text-gray-200 font-medium items-center transition-all">
+          {navLinks.map((link) => (
+            <li key={link.name}>
+              <a
+                href={link.href}
+                className="hover:text-blue-600 transition-all flex items-center gap-1"
+              >
+                {link.name} {link.icon}
+              </a>
+            </li>
+          ))}
+
+          {user ? (
+            <>
+              <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
+                <FaUserCircle /> Hello, {user}
+              </li>
+              <li>
+                <button
+                  onClick={onLogoutClick}
+                  className="hover:text-red-600 transition flex items-center gap-1"
+                >
+                  <FaSignOutAlt /> Log out
+                </button>
+              </li>
+            </>
+          ) : (
+            <li>
+              <button
+                onClick={onLoginClick}
+                className="hover:text-blue-600 transition focus:outline-none"
+              >
+                Log in / Sign up
+              </button>
+            </li>
+          )}
+        </ul>
+
+        {/* Dark Mode Toggle (Desktop) */}
+        <button
+          onClick={onToggleTheme}
+          className="hidden md:block text-gray-600 dark:text-gray-300 hover:text-blue-600 text-2xl transition-all duration-300"
+          title="Toggle Theme"
+        >
+          {darkMode ? <FaMoon /> : <FaSun />}
+        </button>
+
+        {/* Mobile Menu Button */}
+        <button
+          className="md:hidden text-gray-700 dark:text-gray-300 focus:outline-none text-2xl"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          {menuOpen ? <IoMdClose /> : <GiHamburgerMenu />}
+        </button>
+      </div>
+
+      {/* Mobile Nav */}
+      {menuOpen && (
+        <div className="md:hidden px-6 pb-4 bg-white dark:bg-gray-900 shadow-md animate-fade-in-down">
+          <ul className="flex flex-col gap-4 text-gray-700 dark:text-gray-200 font-medium transition-all duration-300">
+            {navLinks.map((link) => (
+              <li key={link.name}>
+                <a
+                  href={link.href}
+                  className="hover:text-blue-600 transition flex items-center gap-1"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {link.name} {link.icon}
+                </a>
+              </li>
+            ))}
+
+            {user ? (
+              <>
+                <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
+                  <FaUserCircle /> Hello, {user}
+                </li>
+                <li>
+                  <button
+                    onClick={() => {
+                      onLogoutClick();
+                      setMenuOpen(false);
+                    }}
+                    className="hover:text-red-600 transition flex items-center gap-1"
+                  >
+                    <FaSignOutAlt /> Log out
+                  </button>
+                </li>
+              </>
+            ) : (
+              <li>
+                <button
+                  onClick={() => {
+                    onLoginClick();
+                    setMenuOpen(false);
+                  }}
+                  className="hover:text-blue-600 transition focus:outline-none"
+                >
+                  Log in / Sign up
+                </button>
+              </li>
+            )}
+          </ul>
+
+          {/* Dark Mode Toggle (Mobile) */}
+          <button
+            onClick={onToggleTheme}
+            className="mt-4 block text-gray-600 dark:text-gray-300 hover:text-blue-600 text-xl"
+          >
+            {darkMode ? <FaMoon /> : <FaSun />}
+          </button>
+        </div>
+      )}
+    </nav>
+  );
+};
+
+export default Navbar;
