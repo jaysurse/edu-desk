@@ -4,10 +4,21 @@ import { FaUserCircle } from "react-icons/fa";
 const AuthForm = ({ onLogin, onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!username.trim()) return;
+
+    if (!username.trim() || !password.trim()) {
+      setError("Username and password are required.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
 
     localStorage.setItem("eduUser", username);
     onLogin(username);
@@ -43,9 +54,26 @@ const AuthForm = ({ onLogin, onClose }) => {
             type="text"
             placeholder="Enter your name"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              setError("");
+            }}
             className="w-full px-4 py-2 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
+          <input
+            type="password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError("");
+            }}
+            className="w-full px-4 py-2 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
           <button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md transition"
@@ -57,7 +85,12 @@ const AuthForm = ({ onLogin, onClose }) => {
         <p className="text-center mt-4 text-white text-sm">
           {isLogin ? "Don't have an account?" : "Already have an account?"}
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError("");
+              setUsername("");
+              setPassword("");
+            }}
             className="text-blue-300 ml-1 hover:underline"
             type="button"
           >

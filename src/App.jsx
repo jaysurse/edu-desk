@@ -6,7 +6,8 @@ import NotesPreview from "./components/Notesp";
 import About from "./components/About";
 import UploadForm from "./components/UploadF";
 import Contact from "./components/Contact";
-import AuthForm from "./components/AuthForm"; // ✅ properly imported
+import AuthForm from "./components/AuthForm";
+import Footer from "./components/Footer";
 
 function App() {
   const [darkMode, setDarkMode] = useState(
@@ -98,6 +99,7 @@ function App() {
       </div>
       <div id="contact">
         <Contact />
+        <Footer />
       </div>
     </>
   );
