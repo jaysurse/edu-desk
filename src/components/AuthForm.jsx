@@ -3,15 +3,21 @@ import { FaUserCircle } from "react-icons/fa";
 
 const AuthForm = ({ onLogin, onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState(""); // renamed from username
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!username.trim() || !password.trim()) {
-      setError("Username and password are required.");
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
       return;
     }
 
@@ -20,8 +26,9 @@ const AuthForm = ({ onLogin, onClose }) => {
       return;
     }
 
-    localStorage.setItem("eduUser", username);
-    onLogin(username);
+    localStorage.setItem("eduUser", email); // store email
+    onLogin(email); // pass to parent
+    onClose();
   };
 
   return (
@@ -51,11 +58,11 @@ const AuthForm = ({ onLogin, onClose }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
-            type="text"
-            placeholder="Enter your name"
-            value={username}
+            type="email"
+            placeholder="Enter your email"
+            value={email}
             onChange={(e) => {
-              setUsername(e.target.value);
+              setEmail(e.target.value);
               setError("");
             }}
             className="w-full px-4 py-2 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -88,7 +95,7 @@ const AuthForm = ({ onLogin, onClose }) => {
             onClick={() => {
               setIsLogin(!isLogin);
               setError("");
-              setUsername("");
+              setEmail("");
               setPassword("");
             }}
             className="text-blue-300 ml-1 hover:underline"
