@@ -1,23 +1,34 @@
-// src/firebase.js
+// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// ✅ Firebase config (from your console)
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBC25icBwLR_AnCcXUWEwuZ4LUFsz2_Xig",
-  authDomain: "edu-desk-79856.firebaseapp.com",
-  projectId: "edu-desk-79856",
-  storageBucket: "edu-desk-79856.firebasestorage.app",
-  messagingSenderId: "990450297149",
-  appId: "1:990450297149:web:9d21f00e97649b494a7d54",
-  measurementId: "G-H691FJPD99"
+  apiKey: "AIzaSyB52LkxYnQXdVHZnes66kIBuq_Mbf5W12E",
+  authDomain: "edu-desk-2e693.firebaseapp.com",
+  projectId: "edu-desk-2e693",
+  storageBucket: "edu-desk-2e693.firebasestorage.app",
+  messagingSenderId: "251002738564",
+  appId: "1:251002738564:web:32a4ab6e3d624dff402fd1",
+  measurementId: "G-NXLX61MS56",
 };
 
-// ✅ Initialize Firebase App
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// ✅ Initialize Firestore (for database)
-const db = getFirestore(app);
+// Initialize Firebase services
+const analytics = getAnalytics(app);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
-// ✅ Export db to use in other files
-export { db };
+// Configure Google Auth Provider
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope("profile");
+googleProvider.addScope("email");
+googleProvider.setCustomParameters({
+  prompt: "select_account", // Forces account selection dialog
+});
+
+export default app;

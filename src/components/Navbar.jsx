@@ -81,7 +81,7 @@ const Navbar = ({
           {user ? (
             <>
               <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
-                <FaUserCircle /> Hello, {user}
+                <FaUserCircle /> Hello, {user.displayName || user.email}
               </li>
               <li>
                 <button
@@ -157,7 +157,7 @@ const Navbar = ({
             {user ? (
               <>
                 <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
-                  <FaUserCircle /> Hello, {user}
+                  <FaUserCircle /> Hello, {user.displayName || user.email}
                 </li>
                 <li>
                   <button

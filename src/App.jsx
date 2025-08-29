@@ -18,7 +18,16 @@ function App() {
   );
   const [showLogin, setShowLogin] = useState(false);
 
-  // Notes logic
+  // Show login popup after 5 sec if no user
+  useEffect(() => {
+    if (!user) {
+      const timer = setTimeout(() => {
+        setShowLogin(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
+
   const [notes, setNotes] = useState(() => {
     return JSON.parse(localStorage.getItem("notes")) || [];
   });
@@ -37,7 +46,7 @@ function App() {
     localStorage.setItem("notes", JSON.stringify(updatedNotes));
   };
 
-  // Dark mode logic
+  // Dark mode toggle persistence
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add("dark");
@@ -48,33 +57,43 @@ function App() {
     }
   }, [darkMode]);
 
+  // Handle login
   const handleLogin = (username) => {
     setUser(username);
     localStorage.setItem("eduUser", username);
     setShowLogin(false);
   };
 
+  // Handle logout
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem("eduUser");
   };
 
+  // Handle closing auth modal
+  const handleCloseAuth = () => {
+    setShowLogin(false);
+    if (!user) {
+      setTimeout(() => {
+        setShowLogin(true);
+      }, 5000);
+    }
+  };
+
   return (
     <>
-      {/* Navbar */}
       <Navbar
         onLoginClick={() => setShowLogin(true)}
         user={user}
         onLogoutClick={handleLogout}
         darkMode={darkMode}
         onToggleTheme={() => setDarkMode((prev) => !prev)}
-        selectedDept={selectedDept} // 👈 new
-        setSelectedDept={setSelectedDept} // 👈 new
+        selectedDept={selectedDept}
+        setSelectedDept={setSelectedDept}
       />
 
-      {/* Auth Modal (styled and working) */}
       {showLogin && (
-        <AuthForm onLogin={handleLogin} onClose={() => setShowLogin(false)} />
+        <AuthForm onLogin={handleLogin} onClose={handleCloseAuth} />
       )}
 
       {/* Sections */}
