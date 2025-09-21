@@ -17,7 +17,7 @@ const Navbar = ({
   darkMode,
   onToggleTheme,
   selectedDept,
-  setSelectedDept, // 👈 Add this prop
+  setSelectedDept,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -37,6 +37,30 @@ const Navbar = ({
       icon: <FaUpload className="inline ml-1" />,
     },
   ];
+
+  // Helper function to get user display name
+  const getUserDisplayName = () => {
+    if (!user) return '';
+    
+    // Handle different user object structures
+    if (typeof user === 'string') return user;
+    
+    return user.displayName || user.email?.split('@')[0] || 'User';
+  };
+
+  // Helper function to render user avatar
+  const renderUserAvatar = (className = "w-8 h-8") => {
+    if (user?.photoURL) {
+      return (
+        <img
+          src={user.photoURL}
+          alt="Profile"
+          className={`${className} rounded-full object-cover border-2 border-blue-500`}
+        />
+      );
+    }
+    return <FaUserCircle className={`${className} text-blue-600 dark:text-blue-400`} />;
+  };
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-md fixed w-full top-0 z-50 transition-colors duration-300">
@@ -58,7 +82,7 @@ const Navbar = ({
             </li>
           ))}
 
-          {/* 👇 Department Filter - Desktop */}
+          {/* Department Filter - Desktop */}
           <select
             value={selectedDept}
             onChange={(e) => {
@@ -80,15 +104,16 @@ const Navbar = ({
 
           {user ? (
             <>
-              <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
-                <FaUserCircle /> Hello, {user}
+              <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-3">
+                {renderUserAvatar()}
+                <span className="hidden lg:block">Hello, {getUserDisplayName()}</span>
               </li>
               <li>
                 <button
                   onClick={onLogoutClick}
                   className="hover:text-red-600 transition flex items-center gap-1"
                 >
-                  <FaSignOutAlt /> Log out
+                  <FaSignOutAlt /> <span className="hidden lg:block">Log out</span>
                 </button>
               </li>
             </>
@@ -138,7 +163,7 @@ const Navbar = ({
               </li>
             ))}
 
-            {/* 👇 Department Filter - Mobile */}
+            {/* Department Filter - Mobile */}
             <li className="flex items-center gap-2">
               <FaFilter className="text-gray-500 dark:text-gray-300" />
               <select
@@ -156,8 +181,9 @@ const Navbar = ({
 
             {user ? (
               <>
-                <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
-                  <FaUserCircle /> Hello, {user}
+                <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-3 py-2">
+                  {renderUserAvatar()}
+                  <span>Hello, {getUserDisplayName()}</span>
                 </li>
                 <li>
                   <button
@@ -191,7 +217,7 @@ const Navbar = ({
             onClick={onToggleTheme}
             className="mt-4 block text-gray-600 dark:text-gray-300 hover:text-blue-600 text-xl"
           >
-            {darkMode ? <FaMoon /> : <FaSun />}
+            {darkMode ? <FaSun /> : <FaMoon />}
           </button>
         </div>
       )}
