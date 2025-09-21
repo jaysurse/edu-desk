@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import { FaUserCircle, FaGoogle, FaEye, FaEyeSlash } from "react-icons/fa";
-import { 
-  doCreateUserWithEmailAndPassword, 
-  doSignInWithEmailAndPassword, 
+import {
+  FaUserCircle,
+  FaGoogle,
+  FaEye,
+  FaEyeSlash,
+  FaTimes,
+} from "react-icons/fa";
+import {
+  doCreateUserWithEmailAndPassword,
+  doSignInWithEmailAndPassword,
   doSignInWithGoogle,
-  doSendEmailVerification
+  doSendEmailVerification,
 } from "../firebase/auth";
 
 const AuthForm = ({ onLogin, onClose }) => {
@@ -22,7 +28,7 @@ const AuthForm = ({ onLogin, onClose }) => {
   const [passwordError, setPasswordError] = useState("");
   const [attemptCount, setAttemptCount] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
-  
+
   const modalRef = useRef(null);
   const firstInputRef = useRef(null);
 
@@ -36,13 +42,13 @@ const AuthForm = ({ onLogin, onClose }) => {
   // Keyboard event handling
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
       }
     };
 
     const handleTab = (e) => {
-      if (e.key === 'Tab' && modalRef.current) {
+      if (e.key === "Tab" && modalRef.current) {
         const focusableElements = modalRef.current.querySelectorAll(
           'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
@@ -59,12 +65,12 @@ const AuthForm = ({ onLogin, onClose }) => {
       }
     };
 
-    document.addEventListener('keydown', handleEscape);
-    document.addEventListener('keydown', handleTab);
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("keydown", handleTab);
 
     return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('keydown', handleTab);
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleTab);
     };
   }, [onClose]);
 
@@ -98,25 +104,27 @@ const AuthForm = ({ onLogin, onClose }) => {
       setPasswordError("");
       return false;
     }
-    
+
     if (password.length < 6) {
       setPasswordError("Password must be at least 6 characters");
       return false;
     }
-    
+
     if (isSignup) {
       // Additional checks for signup
       const hasUpperCase = /[A-Z]/.test(password);
       const hasLowerCase = /[a-z]/.test(password);
       const hasNumbers = /\d/.test(password);
       const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-      
+
       if (!(hasUpperCase && hasLowerCase && (hasNumbers || hasSpecialChar))) {
-        setPasswordError("Password should contain uppercase, lowercase, and numbers or special characters");
+        setPasswordError(
+          "Password should contain uppercase, lowercase, and numbers or special characters"
+        );
         return false;
       }
     }
-    
+
     setPasswordError("");
     return true;
   };
@@ -125,7 +133,9 @@ const AuthForm = ({ onLogin, onClose }) => {
   const checkRateLimit = () => {
     if (attemptCount >= 5) {
       setIsBlocked(true);
-      setError("Too many failed attempts. Please wait 5 minutes before trying again.");
+      setError(
+        "Too many failed attempts. Please wait 5 minutes before trying again."
+      );
       setTimeout(() => {
         setIsBlocked(false);
         setAttemptCount(0);
@@ -158,7 +168,10 @@ const AuthForm = ({ onLogin, onClose }) => {
       return;
     }
 
-    if (!validateEmail(sanitizedEmail) || !validatePassword(sanitizedPassword, !isLogin)) {
+    if (
+      !validateEmail(sanitizedEmail) ||
+      !validatePassword(sanitizedPassword, !isLogin)
+    ) {
       return;
     }
 
@@ -167,18 +180,26 @@ const AuthForm = ({ onLogin, onClose }) => {
 
     try {
       let userCredential;
-      
+
       if (isLogin) {
-        userCredential = await doSignInWithEmailAndPassword(sanitizedEmail, sanitizedPassword);
-        
+        userCredential = await doSignInWithEmailAndPassword(
+          sanitizedEmail,
+          sanitizedPassword
+        );
+
         if (!userCredential.user.emailVerified) {
-          setError("Please verify your email before logging in. Check your inbox for the verification link.");
+          setError(
+            "Please verify your email before logging in. Check your inbox for the verification link."
+          );
           setIsLoading(false);
           return;
         }
       } else {
-        userCredential = await doCreateUserWithEmailAndPassword(sanitizedEmail, sanitizedPassword);
-        
+        userCredential = await doCreateUserWithEmailAndPassword(
+          sanitizedEmail,
+          sanitizedPassword
+        );
+
         try {
           await doSendEmailVerification();
           setVerificationSent(true);
@@ -188,7 +209,9 @@ const AuthForm = ({ onLogin, onClose }) => {
         } catch (verificationError) {
           // Log only error code for security
           console.error("Verification email error:", verificationError.code);
-          setError("Account created, but verification email failed to send. Please try logging in and request verification again.");
+          setError(
+            "Account created, but verification email failed to send. Please try logging in and request verification again."
+          );
         }
       }
 
@@ -196,10 +219,10 @@ const AuthForm = ({ onLogin, onClose }) => {
       const userData = {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || sanitizedEmail.split('@')[0],
+        displayName: user.displayName || sanitizedEmail.split("@")[0],
         photoURL: user.photoURL,
-        loginMethod: 'email',
-        emailVerified: user.emailVerified
+        loginMethod: "email",
+        emailVerified: user.emailVerified,
       };
 
       // Reset attempt count on success
@@ -208,26 +231,35 @@ const AuthForm = ({ onLogin, onClose }) => {
       onClose();
     } catch (error) {
       // Increment attempt count
-      setAttemptCount(prev => prev + 1);
-      
+      setAttemptCount((prev) => prev + 1);
+
       // Log only error code for security
       console.error("Authentication error code:", error.code);
-      
+
       // Handle specific Firebase error codes
       const errorMessages = {
-        'auth/user-not-found': "No account found with this email. Please sign up first.",
-        'auth/wrong-password': "Incorrect password. Please try again.",
-        'auth/user-disabled': "This account has been disabled. Please contact support.",
-        'auth/invalid-credential': "Invalid credentials. Please check your email and password.",
-        'auth/email-already-in-use': "An account with this email already exists. Please log in instead.",
-        'auth/weak-password': "Password should be at least 6 characters long.",
-        'auth/invalid-email': "Please enter a valid email address.",
-        'auth/too-many-requests': "Too many failed attempts. Please try again later.",
-        'auth/network-request-failed': "Network error. Please check your connection and try again.",
-        'auth/operation-not-allowed': "This authentication method is not enabled. Please contact support."
+        "auth/user-not-found":
+          "No account found with this email. Please sign up first.",
+        "auth/wrong-password": "Incorrect password. Please try again.",
+        "auth/user-disabled":
+          "This account has been disabled. Please contact support.",
+        "auth/invalid-credential":
+          "Invalid credentials. Please check your email and password.",
+        "auth/email-already-in-use":
+          "An account with this email already exists. Please log in instead.",
+        "auth/weak-password": "Password should be at least 6 characters long.",
+        "auth/invalid-email": "Please enter a valid email address.",
+        "auth/too-many-requests":
+          "Too many failed attempts. Please try again later.",
+        "auth/network-request-failed":
+          "Network error. Please check your connection and try again.",
+        "auth/operation-not-allowed":
+          "This authentication method is not enabled. Please contact support.",
       };
-      
-      setError(errorMessages[error.code] || "Authentication failed. Please try again.");
+
+      setError(
+        errorMessages[error.code] || "Authentication failed. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -238,39 +270,44 @@ const AuthForm = ({ onLogin, onClose }) => {
 
     setIsGoogleLoading(true);
     setError("");
-    
+
     try {
       const result = await doSignInWithGoogle();
       const user = result.user;
-      
+
       const userData = {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        loginMethod: 'google',
-        emailVerified: user.emailVerified
+        loginMethod: "google",
+        emailVerified: user.emailVerified,
       };
-      
+
       // Reset attempt count on success
       setAttemptCount(0);
       onLogin(userData);
       onClose();
     } catch (error) {
       // Increment attempt count
-      setAttemptCount(prev => prev + 1);
-      
+      setAttemptCount((prev) => prev + 1);
+
       // Log only error code
       console.error("Google login error code:", error.code);
-      
+
       const errorMessages = {
-        'auth/popup-closed-by-user': "Login was cancelled. Please try again.",
-        'auth/popup-blocked': "Popup was blocked. Please allow popups and try again.",
-        'auth/cancelled-popup-request': "Login request was cancelled. Please try again.",
-        'auth/network-request-failed': "Network error. Please check your connection and try again."
+        "auth/popup-closed-by-user": "Login was cancelled. Please try again.",
+        "auth/popup-blocked":
+          "Popup was blocked. Please allow popups and try again.",
+        "auth/cancelled-popup-request":
+          "Login request was cancelled. Please try again.",
+        "auth/network-request-failed":
+          "Network error. Please check your connection and try again.",
       };
-      
-      setError(errorMessages[error.code] || "Google login failed. Please try again.");
+
+      setError(
+        errorMessages[error.code] || "Google login failed. Please try again."
+      );
     } finally {
       setIsGoogleLoading(false);
     }
@@ -288,7 +325,7 @@ const AuthForm = ({ onLogin, onClose }) => {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !isLoading && !isGoogleLoading) {
+    if (e.key === "Enter" && !isLoading && !isGoogleLoading) {
       handleEmailAuth();
     }
   };
@@ -316,19 +353,29 @@ const AuthForm = ({ onLogin, onClose }) => {
           <FaTimes />
         </button>
 
-        <div className="flex justify-center mb-4 text-blue-500 text-4xl" aria-hidden="true">
+        <div
+          className="flex justify-center mb-4 text-blue-500 text-4xl"
+          aria-hidden="true"
+        >
           <FaUserCircle />
         </div>
 
-        <h2 id="auth-title" className="text-2xl font-semibold text-center text-white mb-6">
+        <h2
+          id="auth-title"
+          className="text-2xl font-semibold text-center text-white mb-6"
+        >
           {isLogin ? "Log In" : "Sign Up"}
         </h2>
 
         {/* Verification message */}
         {verificationSent && (
-          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-md" role="alert">
+          <div
+            className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-md"
+            role="alert"
+          >
             <p className="text-green-300 text-sm mb-2">
-              Verification email sent! Please check your inbox and verify your email before logging in.
+              Verification email sent! Please check your inbox and verify your
+              email before logging in.
             </p>
             <button
               onClick={handleResendVerification}
@@ -342,9 +389,13 @@ const AuthForm = ({ onLogin, onClose }) => {
 
         {/* Rate limiting warning */}
         {attemptCount >= 3 && !isBlocked && (
-          <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-md" role="alert">
+          <div
+            className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-md"
+            role="alert"
+          >
             <p className="text-yellow-300 text-sm">
-              Warning: {5 - attemptCount} attempts remaining before temporary lockout.
+              Warning: {5 - attemptCount} attempts remaining before temporary
+              lockout.
             </p>
           </div>
         )}
@@ -358,7 +409,10 @@ const AuthForm = ({ onLogin, onClose }) => {
           type="button"
         >
           {isGoogleLoading ? (
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-800" aria-hidden="true"></div>
+            <div
+              className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-800"
+              aria-hidden="true"
+            ></div>
           ) : (
             <FaGoogle className="text-red-500" aria-hidden="true" />
           )}
@@ -374,7 +428,13 @@ const AuthForm = ({ onLogin, onClose }) => {
           <div className="flex-grow border-t border-white/30"></div>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); handleEmailAuth(); }} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleEmailAuth();
+          }}
+          className="space-y-4"
+        >
           {/* Email Input */}
           <div>
             <label htmlFor="email" className="sr-only">
@@ -401,7 +461,11 @@ const AuthForm = ({ onLogin, onClose }) => {
               required
             />
             {emailError && (
-              <p id="email-error" className="text-red-400 text-sm mt-1" role="alert">
+              <p
+                id="email-error"
+                className="text-red-400 text-sm mt-1"
+                role="alert"
+              >
                 {emailError}
               </p>
             )}
@@ -443,7 +507,11 @@ const AuthForm = ({ onLogin, onClose }) => {
               </button>
             </div>
             {passwordError && (
-              <p id="password-error" className="text-red-400 text-sm mt-1" role="alert">
+              <p
+                id="password-error"
+                className="text-red-400 text-sm mt-1"
+                role="alert"
+              >
                 {passwordError}
               </p>
             )}
@@ -451,7 +519,10 @@ const AuthForm = ({ onLogin, onClose }) => {
 
           {/* Error Message */}
           {error && (
-            <div className="text-red-400 text-sm p-3 bg-red-500/10 rounded-md border border-red-500/20" role="alert">
+            <div
+              className="text-red-400 text-sm p-3 bg-red-500/10 rounded-md border border-red-500/20"
+              role="alert"
+            >
               {error}
             </div>
           )}
@@ -459,15 +530,24 @@ const AuthForm = ({ onLogin, onClose }) => {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isLoading || isGoogleLoading || isBlocked || emailError || passwordError}
+            disabled={
+              isLoading ||
+              isGoogleLoading ||
+              isBlocked ||
+              emailError ||
+              passwordError
+            }
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md transition duration-200 font-semibold disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             aria-describedby={isLoading ? "submit-loading" : undefined}
           >
             {isLoading && (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" aria-hidden="true"></div>
+              <div
+                className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"
+                aria-hidden="true"
+              ></div>
             )}
             <span id={isLoading ? "submit-loading" : undefined}>
-              {isLoading ? "Please wait..." : (isLogin ? "Log In" : "Sign Up")}
+              {isLoading ? "Please wait..." : isLogin ? "Log In" : "Sign Up"}
             </span>
           </button>
         </form>
@@ -479,7 +559,7 @@ const AuthForm = ({ onLogin, onClose }) => {
             disabled={isLoading || isGoogleLoading || isBlocked}
             className="text-blue-300 ml-1 hover:underline disabled:opacity-50 focus:outline-none focus:underline transition-all duration-200"
             type="button"
-            disabled={loading}
+            // disabled={loading}
           >
             {isLogin ? "Sign Up" : "Log In"}
           </button>
@@ -487,7 +567,8 @@ const AuthForm = ({ onLogin, onClose }) => {
 
         {/* Accessibility info */}
         <div className="sr-only">
-          Press Escape to close this dialog. Use Tab to navigate between form elements.
+          Press Escape to close this dialog. Use Tab to navigate between form
+          elements.
         </div>
       </div>
 
