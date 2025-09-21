@@ -1,19 +1,11 @@
-import { useState } from "react";
-import {
-  FaUserCircle,
-  FaEye,
-  FaEyeSlash,
-  FaCheck,
-  FaTimes,
-} from "react-icons/fa";
-import { FcGoogle } from "react-icons/fc";
-import { auth, googleProvider } from "../firebase"; // adjust path if needed
-import {
-  signInWithPopup,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
+import { useState, useEffect, useRef } from "react";
+import { FaUserCircle, FaGoogle, FaEye, FaEyeSlash } from "react-icons/fa";
+import { 
+  doCreateUserWithEmailAndPassword, 
+  doSignInWithEmailAndPassword, 
+  doSignInWithGoogle,
+  doSendEmailVerification
+} from "../firebase/auth";
 
 const AuthForm = ({ onLogin, onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -22,212 +14,283 @@ const AuthForm = ({ onLogin, onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  
+  const modalRef = useRef(null);
+  const firstInputRef = useRef(null);
 
-  // Email validation
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const isPasswordValid = password.length >= 6;
-  const doPasswordsMatch = password === confirmPassword;
+  // Focus management for accessibility
+  useEffect(() => {
+    if (firstInputRef.current) {
+      firstInputRef.current.focus();
+    }
+  }, [isLogin]);
 
-  // 🔹 Real Firebase Authentication
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  // Keyboard event handling
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const handleTab = (e) => {
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleTab);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleTab);
+    };
+  }, [onClose]);
+
+  // Input sanitization
+  const sanitizeEmail = (input) => {
+    return input.trim().toLowerCase();
+  };
+
+  const sanitizePassword = (input) => {
+    return input.trim();
+  };
+
+  // Real-time email validation
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setEmailError("");
+      return false;
+    }
+    if (!emailRegex.test(email)) {
+      setEmailError("Please enter a valid email address");
+      return false;
+    }
+    setEmailError("");
+    return true;
+  };
+
+  // Real-time password validation
+  const validatePassword = (password, isSignup = false) => {
+    if (!password) {
+      setPasswordError("");
+      return false;
+    }
+    
+    if (password.length < 6) {
+      setPasswordError("Password must be at least 6 characters");
+      return false;
+    }
+    
+    if (isSignup) {
+      // Additional checks for signup
+      const hasUpperCase = /[A-Z]/.test(password);
+      const hasLowerCase = /[a-z]/.test(password);
+      const hasNumbers = /\d/.test(password);
+      const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+      
+      if (!(hasUpperCase && hasLowerCase && (hasNumbers || hasSpecialChar))) {
+        setPasswordError("Password should contain uppercase, lowercase, and numbers or special characters");
+        return false;
+      }
+    }
+    
+    setPasswordError("");
+    return true;
+  };
+
+  // Rate limiting
+  const checkRateLimit = () => {
+    if (attemptCount >= 5) {
+      setIsBlocked(true);
+      setError("Too many failed attempts. Please wait 5 minutes before trying again.");
+      setTimeout(() => {
+        setIsBlocked(false);
+        setAttemptCount(0);
+      }, 300000); // 5 minutes
+      return false;
+    }
+    return true;
+  };
+
+  // Resend verification email
+  const handleResendVerification = async () => {
+    try {
+      await doSendEmailVerification();
+      setError("");
+      alert("Verification email resent! Please check your inbox.");
+    } catch (setError) {
+      setError("Failed to resend verification email. Please try again.");
+    }
+  };
+
+  const handleEmailAuth = async () => {
+    if (isBlocked || !checkRateLimit()) return;
+
+    const sanitizedEmail = sanitizeEmail(email);
+    const sanitizedPassword = sanitizePassword(password);
 
     // Validation
-    if (!email.trim()) {
-      setError("Email is required.");
-      setLoading(false);
+    if (!sanitizedEmail || !sanitizedPassword) {
+      setError("Email and password are required");
       return;
     }
 
-    if (!isEmailValid) {
-      setError("Please enter a valid email address.");
-      setLoading(false);
+    if (!validateEmail(sanitizedEmail) || !validatePassword(sanitizedPassword, !isLogin)) {
       return;
     }
 
-    if (!password.trim()) {
-      setError("Password is required.");
-      setLoading(false);
-      return;
-    }
-
-    if (!isPasswordValid) {
-      setError("Password must be at least 6 characters.");
-      setLoading(false);
-      return;
-    }
-
-    if (!isLogin) {
-      if (!displayName.trim()) {
-        setError("Display name is required.");
-        setLoading(false);
-        return;
-      }
-
-      if (!doPasswordsMatch) {
-        setError("Passwords do not match.");
-        setLoading(false);
-        return;
-      }
-    }
-
-    try {
-      if (isLogin) {
-        // 🔑 Sign in existing user
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-        console.log("✅ Login successful:", userCredential.user);
-        onLogin(userCredential.user);
-      } else {
-        // 🆕 Create new user account
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        // Update the user's display name
-        await updateProfile(userCredential.user, {
-          displayName: displayName.trim(),
-        });
-
-        console.log("✅ Account created:", userCredential.user);
-        onLogin(userCredential.user);
-      }
-    } catch (err) {
-      console.error("Authentication error:", err);
-
-      // Handle specific Firebase auth errors with user-friendly messages
-      switch (err.code) {
-        case "auth/user-not-found":
-          setError(
-            "🔍 No account found with this email. Would you like to create an account instead?"
-          );
-          break;
-        case "auth/wrong-password":
-          setError(
-            "🔐 Incorrect password. Please check your password and try again."
-          );
-          break;
-        case "auth/invalid-credential":
-          setError(
-            "❌ Invalid email or password. Please check your credentials and try again."
-          );
-          break;
-        case "auth/email-already-in-use":
-          setError(
-            "📧 This email is already registered. Try signing in instead."
-          );
-          break;
-        case "auth/weak-password":
-          setError(
-            "🔒 Password is too weak. Please use at least 6 characters with numbers and letters."
-          );
-          break;
-        case "auth/invalid-email":
-          setError(
-            "📧 Please enter a valid email address (example: user@email.com)."
-          );
-          break;
-        case "auth/too-many-requests":
-          setError(
-            "⏰ Too many failed attempts. Please wait a few minutes before trying again."
-          );
-          break;
-        case "auth/network-request-failed":
-          setError(
-            "🌐 Network error. Please check your internet connection and try again."
-          );
-          break;
-        case "auth/user-disabled":
-          setError(
-            "🚫 This account has been disabled. Please contact support for help."
-          );
-          break;
-        case "auth/requires-recent-login":
-          setError("🔄 Please log out and sign in again to continue.");
-          break;
-        default:
-          setError(
-            `⚠️ Something went wrong. Please try again or contact support if the problem persists.`
-          );
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🔹 Google Sign-In
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError("");
 
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      console.log("✅ Google login successful:", user);
-      onLogin(user);
-    } catch (err) {
-      console.error("Google Sign-In error:", err);
-
-      // Handle specific Google auth errors with user-friendly messages
-      switch (err.code) {
-        case "auth/popup-closed-by-user":
-          setError(
-            "🚪 Sign-in window was closed. Please try again to continue with Google."
-          );
-          break;
-        case "auth/popup-blocked":
-          setError(
-            "🚫 Pop-up was blocked by your browser. Please allow pop-ups for this site and try again."
-          );
-          break;
-        case "auth/account-exists-with-different-credential":
-          setError(
-            "📧 An account with this email already exists using a different sign-in method. Try signing in with email/password instead."
-          );
-          break;
-        case "auth/cancelled-popup-request":
-          setError(
-            "⏰ Previous sign-in attempt was cancelled. Please try again."
-          );
-          break;
-        case "auth/network-request-failed":
-          setError(
-            "🌐 Network error. Please check your internet connection and try again."
-          );
-          break;
-        default:
-          setError(
-            "🔴 Google Sign-In failed. Please try again or use email/password instead."
-          );
+      let userCredential;
+      
+      if (isLogin) {
+        userCredential = await doSignInWithEmailAndPassword(sanitizedEmail, sanitizedPassword);
+        
+        if (!userCredential.user.emailVerified) {
+          setError("Please verify your email before logging in. Check your inbox for the verification link.");
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        userCredential = await doCreateUserWithEmailAndPassword(sanitizedEmail, sanitizedPassword);
+        
+        try {
+          await doSendEmailVerification();
+          setVerificationSent(true);
+          setError("");
+          setIsLoading(false);
+          return;
+        } catch (verificationError) {
+          // Log only error code for security
+          console.error("Verification email error:", verificationError.code);
+          setError("Account created, but verification email failed to send. Please try logging in and request verification again.");
+        }
       }
+
+      const user = userCredential.user;
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || sanitizedEmail.split('@')[0],
+        photoURL: user.photoURL,
+        loginMethod: 'email',
+        emailVerified: user.emailVerified
+      };
+
+      // Reset attempt count on success
+      setAttemptCount(0);
+      onLogin(userData);
+      onClose();
+    } catch (error) {
+      // Increment attempt count
+      setAttemptCount(prev => prev + 1);
+      
+      // Log only error code for security
+      console.error("Authentication error code:", error.code);
+      
+      // Handle specific Firebase error codes
+      const errorMessages = {
+        'auth/user-not-found': "No account found with this email. Please sign up first.",
+        'auth/wrong-password': "Incorrect password. Please try again.",
+        'auth/user-disabled': "This account has been disabled. Please contact support.",
+        'auth/invalid-credential': "Invalid credentials. Please check your email and password.",
+        'auth/email-already-in-use': "An account with this email already exists. Please log in instead.",
+        'auth/weak-password': "Password should be at least 6 characters long.",
+        'auth/invalid-email': "Please enter a valid email address.",
+        'auth/too-many-requests': "Too many failed attempts. Please try again later.",
+        'auth/network-request-failed': "Network error. Please check your connection and try again.",
+        'auth/operation-not-allowed': "This authentication method is not enabled. Please contact support."
+      };
+      
+      setError(errorMessages[error.code] || "Authentication failed. Please try again.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const toggleMode = () => {
+  const handleGoogleLogin = async () => {
+    if (isBlocked || !checkRateLimit()) return;
+
+    setIsGoogleLoading(true);
+    setError("");
+    
+    try {
+      const result = await doSignInWithGoogle();
+      const user = result.user;
+      
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        loginMethod: 'google',
+        emailVerified: user.emailVerified
+      };
+      
+      // Reset attempt count on success
+      setAttemptCount(0);
+      onLogin(userData);
+      onClose();
+    } catch (error) {
+      // Increment attempt count
+      setAttemptCount(prev => prev + 1);
+      
+      // Log only error code
+      console.error("Google login error code:", error.code);
+      
+      const errorMessages = {
+        'auth/popup-closed-by-user': "Login was cancelled. Please try again.",
+        'auth/popup-blocked': "Popup was blocked. Please allow popups and try again.",
+        'auth/cancelled-popup-request': "Login request was cancelled. Please try again.",
+        'auth/network-request-failed': "Network error. Please check your connection and try again."
+      };
+      
+      setError(errorMessages[error.code] || "Google login failed. Please try again.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleModeSwitch = () => {
     setIsLogin(!isLogin);
     setError("");
     setEmail("");
     setPassword("");
-    setConfirmPassword("");
-    setDisplayName("");
+    setVerificationSent(false);
+    setEmailError("");
+    setPasswordError("");
     setShowPassword(false);
-    setShowConfirmPassword(false);
   };
 
-  const handleCloseAuth = () => {
-    setShowLogin(false);
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !isLoading && !isGoogleLoading) {
+      handleEmailAuth();
+    }
   };
 
   return (
@@ -239,205 +302,156 @@ const AuthForm = ({ onLogin, onClose }) => {
       aria-labelledby="auth-title"
     >
       <div
-        className="bg-white/15 dark:bg-gray-800/50 backdrop-blur-xl p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/30 dark:border-gray-600 animate-fadeInScale"
+        ref={modalRef}
+        className="bg-white/10 dark:bg-gray-800/40 backdrop-blur-lg p-6 rounded-xl shadow-xl w-full max-w-sm border border-white/20 dark:border-gray-700 animate-fadeInScale"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-white/80 hover:text-white hover:bg-white/10 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200"
-          aria-label="Close dialog"
-          disabled={loading}
+          className="float-right text-white hover:text-red-400 text-2xl font-bold transition-colors duration-200"
+          aria-label="Close authentication dialog"
+          type="button"
         >
           <FaTimes />
         </button>
 
-        {/* Icon */}
-        <div className="flex justify-center mb-6 text-blue-400 text-5xl">
+        <div className="flex justify-center mb-4 text-blue-500 text-4xl" aria-hidden="true">
           <FaUserCircle />
         </div>
 
-        {/* Title */}
-        <h2
-          id="auth-title"
-          className="text-2xl font-bold text-center text-white mb-6"
-        >
-          {isLogin ? "Welcome Back!" : "Create Account"}
+        <h2 id="auth-title" className="text-2xl font-semibold text-center text-white mb-6">
+          {isLogin ? "Log In" : "Sign Up"}
         </h2>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Display Name Field (Sign Up only) */}
-          {!isLogin && (
-            <div className="relative">
-              <label htmlFor="displayName" className="sr-only">
-                Full Name
-              </label>
-              <input
-                id="displayName"
-                type="text"
-                placeholder="Enter your full name"
-                value={displayName}
-                onChange={(e) => {
-                  setDisplayName(e.target.value);
-                  setError("");
-                }}
-                className="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/25 transition-all duration-200 border border-transparent focus:border-blue-400/50"
-                disabled={loading}
-                autoComplete="name"
-                required={!isLogin}
-              />
-            </div>
-          )}
+        {/* Verification message */}
+        {verificationSent && (
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-md" role="alert">
+            <p className="text-green-300 text-sm mb-2">
+              Verification email sent! Please check your inbox and verify your email before logging in.
+            </p>
+            <button
+              onClick={handleResendVerification}
+              className="text-green-200 underline text-xs hover:text-green-100 transition-colors"
+              type="button"
+            >
+              Didn't receive the email? Resend verification
+            </button>
+          </div>
+        )}
 
-          {/* Email Field */}
-          <div className="relative">
+        {/* Rate limiting warning */}
+        {attemptCount >= 3 && !isBlocked && (
+          <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-md" role="alert">
+            <p className="text-yellow-300 text-sm">
+              Warning: {5 - attemptCount} attempts remaining before temporary lockout.
+            </p>
+          </div>
+        )}
+
+        {/* Google Login Button */}
+        <button
+          onClick={handleGoogleLogin}
+          disabled={isGoogleLoading || isLoading || isBlocked}
+          className="w-full bg-white hover:bg-gray-100 text-gray-800 font-semibold py-3 px-4 rounded-md transition duration-200 flex items-center justify-center space-x-3 mb-4 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          aria-describedby={isGoogleLoading ? "google-loading" : undefined}
+          type="button"
+        >
+          {isGoogleLoading ? (
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-800" aria-hidden="true"></div>
+          ) : (
+            <FaGoogle className="text-red-500" aria-hidden="true" />
+          )}
+          <span id={isGoogleLoading ? "google-loading" : undefined}>
+            {isGoogleLoading ? "Connecting..." : "Continue with Google"}
+          </span>
+        </button>
+
+        {/* Divider */}
+        <div className="flex items-center mb-4" aria-hidden="true">
+          <div className="flex-grow border-t border-white/30"></div>
+          <span className="px-4 text-white/70 text-sm">or</span>
+          <div className="flex-grow border-t border-white/30"></div>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); handleEmailAuth(); }} className="space-y-4">
+          {/* Email Input */}
+          <div>
             <label htmlFor="email" className="sr-only">
               Email Address
             </label>
             <input
+              ref={firstInputRef}
               id="email"
               type="email"
-              placeholder="Enter your email address"
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => {
-                setEmail(e.target.value);
+                const sanitized = sanitizeEmail(e.target.value);
+                setEmail(sanitized);
+                validateEmail(sanitized);
                 setError("");
               }}
-              className="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/25 transition-all duration-200 border border-transparent focus:border-blue-400/50"
-              disabled={loading}
+              onKeyPress={handleKeyPress}
+              disabled={isLoading || isGoogleLoading || isBlocked}
+              className="w-full px-4 py-3 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all duration-200"
+              aria-describedby={emailError ? "email-error" : undefined}
+              aria-invalid={emailError ? "true" : "false"}
               autoComplete="email"
               required
             />
-            {/* Email validation indicator */}
-            {email && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                {isEmailValid ? (
-                  <FaCheck className="text-green-400 text-sm" />
-                ) : (
-                  <FaTimes className="text-red-400 text-sm" />
-                )}
-              </div>
+            {emailError && (
+              <p id="email-error" className="text-red-400 text-sm mt-1" role="alert">
+                {emailError}
+              </p>
             )}
           </div>
 
-          {/* Password Field */}
-          <div className="relative">
+          {/* Password Input */}
+          <div>
             <label htmlFor="password" className="sr-only">
               Password
             </label>
-            <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError("");
-              }}
-              className="w-full px-4 py-3 pr-12 rounded-lg bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/25 transition-all duration-200 border border-transparent focus:border-blue-400/50"
-              disabled={loading}
-              autoComplete={isLogin ? "current-password" : "new-password"}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition-colors"
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              disabled={loading}
-            >
-              {showPassword ? <FaEyeSlash /> : <FaEye />}
-            </button>
-          </div>
-
-          {/* Password validation indicator for signup */}
-          {!isLogin && password && (
-            <div className="text-sm space-y-1">
-              <div
-                className={`flex items-center ${
-                  isPasswordValid ? "text-green-400" : "text-red-400"
-                }`}
-              >
-                {isPasswordValid ? (
-                  <FaCheck className="mr-2 text-xs" />
-                ) : (
-                  <FaTimes className="mr-2 text-xs" />
-                )}
-                At least 6 characters
-              </div>
-              {email && (
-                <div
-                  className={`flex items-center ${
-                    isEmailValid ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {isEmailValid ? (
-                    <FaCheck className="mr-2 text-xs" />
-                  ) : (
-                    <FaTimes className="mr-2 text-xs" />
-                  )}
-                  Valid email address
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Confirm Password Field (Sign Up only) */}
-          {!isLogin && (
             <div className="relative">
-              <label htmlFor="confirmPassword" className="sr-only">
-                Confirm Password
-              </label>
               <input
-                id="confirmPassword"
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="Confirm your password"
-                value={confirmPassword}
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
                 onChange={(e) => {
-                  setConfirmPassword(e.target.value);
+                  const sanitized = sanitizePassword(e.target.value);
+                  setPassword(sanitized);
+                  validatePassword(sanitized, !isLogin);
                   setError("");
                 }}
-                className="w-full px-4 py-3 pr-12 rounded-lg bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/25 transition-all duration-200 border border-transparent focus:border-blue-400/50"
-                disabled={loading}
-                autoComplete="new-password"
+                onKeyPress={handleKeyPress}
+                disabled={isLoading || isGoogleLoading || isBlocked}
+                className="w-full px-4 py-3 pr-12 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all duration-200"
+                aria-describedby={passwordError ? "password-error" : undefined}
+                aria-invalid={passwordError ? "true" : "false"}
+                autoComplete={isLogin ? "current-password" : "new-password"}
+                required
               />
               <button
                 type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition-colors"
-                aria-label={
-                  showConfirmPassword
-                    ? "Hide confirm password"
-                    : "Show confirm password"
-                }
-                disabled={loading}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70 hover:text-white transition-colors duration-200"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                disabled={isLoading || isGoogleLoading}
               >
-                {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
               </button>
             </div>
-          )}
-
-          {/* Password match indicator */}
-          {!isLogin && confirmPassword && (
-            <div className="text-sm">
-              <div
-                className={`flex items-center ${
-                  doPasswordsMatch ? "text-green-400" : "text-red-400"
-                }`}
-              >
-                {doPasswordsMatch ? (
-                  <FaCheck className="mr-2" />
-                ) : (
-                  <FaTimes className="mr-2" />
-                )}
-                Passwords {doPasswordsMatch ? "match" : "do not match"}
-              </div>
-            </div>
-          )}
+            {passwordError && (
+              <p id="password-error" className="text-red-400 text-sm mt-1" role="alert">
+                {passwordError}
+              </p>
+            )}
+          </div>
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-500/20 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg text-sm leading-relaxed">
+            <div className="text-red-400 text-sm p-3 bg-red-500/10 rounded-md border border-red-500/20" role="alert">
               {error}
             </div>
           )}
@@ -445,74 +459,36 @@ const AuthForm = ({ onLogin, onClose }) => {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={
-              loading ||
-              !isEmailValid ||
-              !isPasswordValid ||
-              (!isLogin && (!doPasswordsMatch || !displayName.trim()))
-            }
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+            disabled={isLoading || isGoogleLoading || isBlocked || emailError || passwordError}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md transition duration-200 font-semibold disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            aria-describedby={isLoading ? "submit-loading" : undefined}
           >
-            {loading ? (
-              <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                {isLogin ? "Signing In..." : "Creating Account..."}
-              </div>
-            ) : isLogin ? (
-              "Sign In"
-            ) : (
-              "Create Account"
+            {isLoading && (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" aria-hidden="true"></div>
             )}
+            <span id={isLoading ? "submit-loading" : undefined}>
+              {isLoading ? "Please wait..." : (isLogin ? "Log In" : "Sign Up")}
+            </span>
           </button>
         </form>
 
-        {/* Divider */}
-        <div className="flex items-center my-6">
-          <div className="flex-1 h-px bg-white/30"></div>
-          <span className="text-white/80 text-sm px-4 font-medium">OR</span>
-          <div className="flex-1 h-px bg-white/30"></div>
-        </div>
-
-        {/* Google Sign-In */}
-        <button
-          onClick={handleGoogleSignIn}
-          disabled={loading}
-          className="w-full flex items-center justify-center bg-white hover:bg-gray-50 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-800 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-semibold transform hover:-translate-y-0.5 disabled:transform-none"
-        >
-          <FcGoogle className="text-xl mr-3" />
-          {loading ? "Please wait..." : "Continue with Google"}
-        </button>
-
-        {/* Toggle Login/Signup */}
-        <div className="text-center mt-6">
-          <p className="text-white/90 text-sm">
-            {isLogin ? "New to our platform?" : "Already have an account?"}
-          </p>
+        <p className="text-center mt-6 text-white text-sm">
+          {isLogin ? "Don't have an account?" : "Already have an account?"}
           <button
-            onClick={toggleMode}
-            className="text-blue-300 hover:text-blue-200 font-semibold hover:underline transition-colors mt-1"
+            onClick={handleModeSwitch}
+            disabled={isLoading || isGoogleLoading || isBlocked}
+            className="text-blue-300 ml-1 hover:underline disabled:opacity-50 focus:outline-none focus:underline transition-all duration-200"
             type="button"
             disabled={loading}
           >
-            {isLogin ? "Create an account" : "Sign in instead"}
+            {isLogin ? "Sign Up" : "Log In"}
           </button>
-        </div>
+        </p>
 
-        {/* Additional Help */}
-        {isLogin && (
-          <div className="text-center mt-4">
-            <button
-              type="button"
-              className="text-white/70 hover:text-white text-sm hover:underline transition-colors"
-              onClick={() =>
-                alert("Password reset functionality would be implemented here")
-              }
-              disabled={loading}
-            >
-              Forgot your password?
-            </button>
-          </div>
-        )}
+        {/* Accessibility info */}
+        <div className="sr-only">
+          Press Escape to close this dialog. Use Tab to navigate between form elements.
+        </div>
       </div>
 
       {/* Custom CSS for animations */}

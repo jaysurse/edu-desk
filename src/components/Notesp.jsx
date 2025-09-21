@@ -1,33 +1,10 @@
 import { useState } from "react";
 
-const staticNotes = [
-  {
-    id: "static1",
-    title: "Operating System Notes",
-    subject: "OS",
-    uploader: "Shree Jejurikar",
-    department: "Computer",
-  },
-  {
-    id: "static2",
-    title: "Data Structures (Stack & Queue)",
-    subject: "DSA",
-    uploader: "Sujay Dongre",
-    department: "Computer",
-  },
-  {
-    id: "static3",
-    title: "Python Basics Notes",
-    subject: "Python",
-    uploader: "Jay Surse",
-    department: "Computer",
-  },
-];
-
-const NotesPreview = ({ notes, deleteNote, selectedDept }) => {
+const NotesPreview = ({ notes, deleteNote, downloadNote, selectedDept , user, loading}) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [downloadingIds, setDownloadingIds] = useState(new Set());
 
-  const allNotes = [...notes, ...staticNotes];
+  const allNotes = notes;
 
   const filteredNotes = allNotes.filter((note) => {
     const matchesSearch =
@@ -41,6 +18,38 @@ const NotesPreview = ({ notes, deleteNote, selectedDept }) => {
     return matchesSearch && matchesDept;
   });
 
+  const handleDownload = async (note) => {
+    setDownloadingIds((prev) => new Set([...prev, note.id]));
+
+    try {
+      // Use filename if available, otherwise create one from title
+      const filename =
+        note.filename || `${note.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      await downloadNote(note.id, filename);
+    } catch (error) {
+      console.error("Download failed:", error);
+      alert("Download failed. Please try again.");
+    } finally {
+      setDownloadingIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(note.id);
+        return newSet;
+      });
+    }
+  };
+
+    if (loading) {
+    return (
+      <section className="py-16 bg-white dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-2 text-gray-600 dark:text-gray-400">Loading notes...</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="py-16 bg-white dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4">
@@ -61,7 +70,7 @@ const NotesPreview = ({ notes, deleteNote, selectedDept }) => {
         </div>
         {filteredNotes.length === 0 && (
           <p className="text-center text-gray-600 dark:text-gray-400 mt-4">
-            No notes available for this department.
+            No notes available. Try Searching for something else.
           </p>
         )}
 
@@ -93,20 +102,27 @@ const NotesPreview = ({ notes, deleteNote, selectedDept }) => {
 
               <div className="flex justify-between items-center">
                 <button
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  disabled
+                  className={`px-4 py-2 rounded transition ${
+                    downloadingIds.has(note.id)
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  } text-white`}
+                  onClick={() => handleDownload(note)}
+                  disabled={downloadingIds.has(note.id)}
                 >
-                  Download 🚫
+                  {downloadingIds.has(note.id) ? "Downloading..." : "Download"}
                 </button>
 
-                {notes.some((n) => n.id === note.id) && (
-                  <button
-                    onClick={() => deleteNote(note.id)}
-                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                  >
-                    Delete
-                  </button>
-                )}
+                {notes.some((n) => n.id === note.id) &&
+                  user &&
+                  note.uploader_email === user.email && (
+                    <button
+                      onClick={() => deleteNote(note.id)}
+                      className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  )}
               </div>
             </div>
           ))}

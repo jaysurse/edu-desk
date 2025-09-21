@@ -1,13 +1,20 @@
+// eslint-disable-next-line no-unused-vars
 import { motion } from "framer-motion";
 import heroImage from "../assets/heroImage.png";
 
-const HeroSection = ({ onLoginClick }) => {
-  const handleScroll = () => {
-    document.getElementById("upload")?.scrollIntoView({ behavior: "smooth" });
+const HeroSection = ({ onLoginClick, user }) => {
+  const handleGetStarted = () => {
+    if (user) {
+      // If user is logged in, scroll to upload form
+      document.getElementById("upload")?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      // If user is not logged in, show login modal
+      onLoginClick();
+    }
   };
 
   return (
-    <section className="py-16 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+    <section className="py-16 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-white">
       <div className="container mx-auto flex px-6 md:px-12 py-20 md:flex-row flex-col items-center">
         {/* Left Text Block */}
         <motion.div
@@ -34,24 +41,26 @@ const HeroSection = ({ onLoginClick }) => {
                 type: "spring",
                 stiffness: 200,
               }}
-              className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400"
+              className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400"
             >
               Share & Find Notes Easily
             </motion.span>
           </motion.h1>
 
-          <p className="mb-8 text-blue-200 text-lg max-w-xl">
-            A modern platform for academic collaboration and note sharing with
-            your peers.
+          <p className="mb-8 text-blue-700 dark:text-blue-200 text-lg max-w-xl">
+            {user 
+              ? `Welcome back! Ready to share some notes, ${user.displayName || user.email?.split('@')[0] || 'there'}?`
+              : "A modern platform for academic collaboration and note sharing with your peers."
+            }
           </p>
 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="bg-white text-blue-900 font-semibold px-6 py-3 rounded-lg shadow hover:bg-blue-200 transition-all"
-            onClick={onLoginClick}
+            className="bg-blue-600 hover:bg-blue-700 dark:bg-white dark:hover:bg-blue-200 text-white dark:text-blue-900 font-semibold px-6 py-3 rounded-lg shadow transition-all"
+            onClick={handleGetStarted}
           >
-            Get Started
+            {user ? "Upload Notes" : "Get Started"}
           </motion.button>
         </motion.div>
 

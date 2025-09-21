@@ -1,8 +1,8 @@
 import {
   FaFileAlt,
   FaUpload,
-  FaChalkboardTeacher,
-  FaCalendarAlt,
+  FaShieldAlt,   
+  FaFolder,     
   FaSearch,
   FaMoon,
 } from "react-icons/fa";
@@ -19,14 +19,14 @@ const features = [
     description: "Upload your assignments securely for faculty review.",
   },
   {
-    title: "Faculty Access",
-    icon: <FaChalkboardTeacher className="text-green-600 text-4xl" />,
-    description: "Allow professors to access and review submitted notes.",
+    title: "Secure Storage",
+    icon: <FaShieldAlt className="text-green-600 text-4xl" />,
+    description: "Your files are stored safely with reliable cloud storage.",
   },
   {
-    title: "Track Deadlines",
-    icon: <FaCalendarAlt className="text-red-500 text-4xl" />,
-    description: "Never miss a due date with reminders and calendar sync.",
+    title: "Easy Organization",
+    icon: <FaFolder className="text-red-500 text-4xl" />,
+    description: "Keep your notes and assignments organized in one place.",
   },
   {
     title: "Smart Search",
