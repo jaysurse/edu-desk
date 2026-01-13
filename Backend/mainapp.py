@@ -4,6 +4,8 @@ from config import config
 import os
 import logging
 from routes.files import files_bp
+from routes.community import community_bp
+from routes.analytics_admin import analytics_bp
 from utils.auth import initialize_firebase
 from utils.firestore_db import initialize_firestore
 from utils.storage import initialize_storage, get_storage
@@ -81,6 +83,8 @@ def create_app(config_name=None):
 
     # Register blueprints
     app.register_blueprint(files_bp, url_prefix="/api/files")
+    app.register_blueprint(community_bp, url_prefix="/api/community")
+    app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
 
     # Health check endpoint
     @app.route("/health")

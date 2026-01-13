@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import { GiHamburgerMenu } from "react-icons/gi";
 import { IoMdClose } from "react-icons/io";
+import ProfileModal from "./ProfileModal";
 
 const Navbar = ({
   onLoginClick,
@@ -18,25 +19,78 @@ const Navbar = ({
   onToggleTheme,
   selectedDept,
   setSelectedDept,
+  activeSection,
+  setActiveSection,
+  API_BASE,
+  notes,
+  deleteNote,
+  downloadNote,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [activeProfileTab, setActiveProfileTab] = useState("profile");
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "auto";
   }, [menuOpen]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      const profileDropdown = document.querySelector(".profile-dropdown-container");
+      if (profileDropdown && !profileDropdown.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+
+    if (profileDropdownOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [profileDropdownOpen]);
+
   const navLinks = [
-    { name: "Home", href: "#home" },
-    { name: "Features", href: "#features" },
-    { name: "Notes", href: "#notes" },
-    { name: "About", href: "#about" },
-    { name: "Contact", href: "#contact" },
+    { name: "Home", href: "#home", requiresAuth: false },
+    { name: "Features", href: "#features", requiresAuth: false },
+    { name: "Notes", href: "#notes", requiresAuth: false },
+    { name: "About", href: "#about", requiresAuth: false },
+    { name: "Contact", href: "#contact", requiresAuth: false },
     {
       name: "Upload",
       href: "#upload",
       icon: <FaUpload className="inline ml-1" />,
+      requiresAuth: false,
     },
   ];
+
+  // Handle navigation with auth check
+  const handleNavClick = (e, link) => {
+    if (link.requiresAuth && !user) {
+      e.preventDefault();
+      onLoginClick();
+      return;
+    }
+    
+    // If it's a profile link, set activeSection instead of scrolling
+    if (link.name === "Profile") {
+      e.preventDefault();
+      setActiveSection("profile");
+      return;
+    }
+    
+    setMenuOpen(false);
+    // Smooth scroll to section
+    setTimeout(() => {
+      const section = document.querySelector(link.href);
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
+  };
 
   // Helper function to get user display name
   const getUserDisplayName = () => {
@@ -75,9 +129,14 @@ const Navbar = ({
             <li key={link.name}>
               <a
                 href={link.href}
-                className="hover:text-blue-600 transition-all flex items-center gap-1"
+                onClick={(e) => handleNavClick(e, link)}
+                className="hover:text-blue-600 transition-all flex items-center gap-1 cursor-pointer"
+                title={link.requiresAuth && !user ? "Sign in required" : ""}
               >
                 {link.name} {link.icon}
+                {link.requiresAuth && !user && (
+                  <span className="text-xs text-gray-400 ml-1">🔒</span>
+                )}
               </a>
             </li>
           ))}
@@ -104,17 +163,91 @@ const Navbar = ({
 
           {user ? (
             <>
-              <li className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-3">
-                {renderUserAvatar()}
-                <span className="hidden lg:block">Hello, {getUserDisplayName()}</span>
-              </li>
-              <li>
+              <li className="relative profile-dropdown-container">
                 <button
-                  onClick={onLogoutClick}
-                  className="hover:text-red-600 transition flex items-center gap-1"
+                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  className="flex items-center gap-2 hover:opacity-80 transition p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title={getUserDisplayName()}
                 >
-                  <FaSignOutAlt /> <span className="hidden lg:block">Log out</span>
+                  {renderUserAvatar("w-8 h-8")}
+                  <span className="hidden lg:block text-gray-800 dark:text-white font-semibold">{getUserDisplayName()}</span>
                 </button>
+
+                {/* Profile Dropdown */}
+                {profileDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
+                    <div className="p-3 border-b dark:border-gray-700 flex items-center gap-3">
+                      {renderUserAvatar("w-10 h-10")}
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{getUserDisplayName()}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1 p-2">
+                      <button
+                        onClick={() => {
+                          setActiveProfileTab("profile");
+                          setShowProfileModal(true);
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2 text-sm"
+                      >
+                        👤 My Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveProfileTab("dashboard");
+                          setShowProfileModal(true);
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2 text-sm"
+                      >
+                        📊 My Dashboard
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveProfileTab("analytics");
+                          setShowProfileModal(true);
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2 text-sm"
+                      >
+                        📈 My Analytics
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveProfileTab("shared");
+                          setShowProfileModal(true);
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2 text-sm"
+                      >
+                        📝 My Shared Notes
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveProfileTab("likes");
+                          setShowProfileModal(true);
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center gap-2 text-sm"
+                      >
+                        ❤️ My Likes
+                      </button>
+                    </div>
+                    <div className="p-2 border-t dark:border-gray-700">
+                      <button
+                        onClick={() => {
+                          onLogoutClick();
+                          setProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded flex items-center gap-2 text-sm"
+                      >
+                        <FaSignOutAlt /> Log out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             </>
           ) : (
@@ -155,10 +288,14 @@ const Navbar = ({
               <li key={link.name}>
                 <a
                   href={link.href}
-                  className="hover:text-blue-600 transition flex items-center gap-1"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={(e) => handleNavClick(e, link)}
+                  className="hover:text-blue-600 transition flex items-center gap-1 cursor-pointer"
+                  title={link.requiresAuth && !user ? "Sign in required" : ""}
                 >
                   {link.name} {link.icon}
+                  {link.requiresAuth && !user && (
+                    <span className="text-xs text-gray-400 ml-1">🔒</span>
+                  )}
                 </a>
               </li>
             ))}
@@ -221,6 +358,17 @@ const Navbar = ({
           </button>
         </div>
       )}
+
+      {/* Profile Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={user}
+        API_BASE={API_BASE}
+        notes={notes}
+        deleteNote={deleteNote}
+        downloadNote={downloadNote}
+      />
     </nav>
   );
 };
