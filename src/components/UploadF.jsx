@@ -333,8 +333,13 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
     try {
       // Get the user's ID token for backend authentication
       const idToken = await user.getIdToken(true); // Force refresh to get a fresh token
+      console.log("🔑 Got ID token, preparing upload...");
 
-      const response = await fetch("https://edudesk.onrender.com/api/files/upload", {
+      const API_BASE = import.meta.env.DEV ? "http://localhost:10000" : "https://edudesk.onrender.com";
+      console.log("📡 API Base:", API_BASE);
+      console.log("📤 Uploading file:", formData.file.name);
+      
+      const response = await fetch(`${API_BASE}/api/files/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${idToken}`, // Send token for backend verification
@@ -342,7 +347,11 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
         body: formDataToSend,
       });
 
+      console.log("📨 Response status:", response.status);
+      console.log("📨 Response ok:", response.ok);
+      
       const result = await response.json();
+      console.log("📨 Response data:", result);
 
       if (response.ok) {
         addNote(result.note);
@@ -569,8 +578,9 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
                     </div>
                     <button
                       onClick={() => {
+                        const API_BASE = import.meta.env.DEV ? "http://localhost:10000" : "https://edudesk.onrender.com";
                         window.open(
-                          `https://edudesk.onrender.com/api/files/download/${note.id}`,
+                          `${API_BASE}/api/files/download/${note.id}`,
                           "_blank"
                         );
                       }}

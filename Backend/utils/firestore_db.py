@@ -3,6 +3,10 @@ from firebase_admin import firestore
 from typing import Dict, List, Optional
 from flask import current_app
 import logging
+import os
+import json
+import uuid
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -393,24 +397,106 @@ class FirestoreNotesDB:
         """Helper method for Firestore increment operations"""
         return firestore.Increment(value)
     
+class LocalNotesDB:
+    """Filesystem-backed notes store for local/non-production environments."""
+
+    def __init__(self):
+        base_path = os.environ.get("FILE_STORAGE_PATH") or os.path.abspath("uploads")
+        Path(base_path).mkdir(parents=True, exist_ok=True)
+        self.notes_file = Path(base_path) / "notes.json"
+        if not self.notes_file.exists():
+            self.notes_file.write_text(json.dumps([]))
+
+    def _load(self) -> List[Dict]:
+        try:
+            return json.loads(self.notes_file.read_text())
+        except Exception:
+            return []
+
+    def _save(self, notes: List[Dict]):
+        self.notes_file.write_text(json.dumps(notes, default=str))
+
+    def create_note(self, note_data: Dict) -> str:
+        notes = self._load()
+        note_id = str(uuid.uuid4())
+        note_copy = note_data.copy()
+        note_copy['id'] = note_id
+        notes.append(note_copy)
+        self._save(notes)
+        return note_id
+
+    def get_note(self, note_id: str) -> Optional[Dict]:
+        for n in self._load():
+            if n.get('id') == note_id:
+                return n
+        return None
+
+    def get_all_notes(self, limit: int = 100) -> List[Dict]:
+        return list(self._load())[:limit]
+
+    def get_notes_by_user(self, user_id: str, limit: int = 100) -> List[Dict]:
+        return [n for n in self._load() if n.get('uploaded_by') == user_id][:limit]
+
+    def get_notes_by_filters(self, subject: str = None, department: str = None, limit: int = 100) -> List[Dict]:
+        notes = self._load()
+        if subject:
+            notes = [n for n in notes if n.get('subject') == subject]
+        if department:
+            notes = [n for n in notes if n.get('department') == department]
+        return notes[:limit]
+
+    def increment_download_count(self, note_id: str):
+        notes = self._load()
+        for n in notes:
+            if n.get('id') == note_id:
+                n['download_count'] = n.get('download_count', 0) + 1
+                break
+        self._save(notes)
+
+    def delete_note(self, note_id: str) -> bool:
+        notes = self._load()
+        new_notes = [n for n in notes if n.get('id') != note_id]
+        deleted = len(new_notes) != len(notes)
+        if deleted:
+            self._save(new_notes)
+        return deleted
+
+    def get_unique_subjects(self) -> List[str]:
+        return list({n.get('subject') for n in self._load() if n.get('subject')})
+
+    def get_unique_departments(self) -> List[str]:
+        return list({n.get('department') for n in self._load() if n.get('department')})
+
+
 _firestore_db_instance = None
 
+
 def get_firestore_db():
-    """Get or create Firestore database instance"""
+    """Get or create database instance (Firestore in production, local JSON otherwise)."""
     global _firestore_db_instance
     if _firestore_db_instance is None:
-        _firestore_db_instance = FirestoreNotesDB()
+        env = os.getenv("ENV", "local").lower()
+        if env == "production":
+            _firestore_db_instance = FirestoreNotesDB()
+        else:
+            logger.info("Using LocalNotesDB (filesystem) for non-production environment")
+            _firestore_db_instance = LocalNotesDB()
     return _firestore_db_instance
 
 
 def initialize_firestore():
-    """Initialize Firestore database connection"""
+    """Initialize database connection (Firestore in production, local JSON otherwise)."""
     global firestore_db
+    env = os.getenv("ENV", "local").lower()
     try:
-        firestore_db = FirestoreNotesDB()
+        if env == "production":
+            firestore_db = FirestoreNotesDB()
+        else:
+            logger.info("Initializing LocalNotesDB (filesystem) for non-production")
+            firestore_db = LocalNotesDB()
         return firestore_db
     except Exception as e:
-        logger.error("Failed to initialize Firestore")
+        logger.error("Failed to initialize Firestore/local store")
         if current_app and current_app.debug:
             logger.error(f"Firestore initialization error: {e}")
         raise

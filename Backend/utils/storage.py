@@ -8,8 +8,76 @@ import mimetypes
 from datetime import datetime, timedelta
 from flask import current_app
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+class LocalFileStorage:
+    """Simple filesystem storage (used for local/dev and Render disk)."""
+
+    def __init__(self, base_path: str):
+        self.base_path = Path(base_path)
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Local storage initialized at {self.base_path}")
+
+    def generate_unique_key(self, original_filename: str) -> str:
+        safe_name = secure_filename(original_filename)
+        unique_suffix = uuid.uuid4().hex
+        return f"{unique_suffix}_{safe_name}"
+
+    def upload_file(self, file_obj, original_filename: str) -> dict:
+        file_key = self.generate_unique_key(original_filename)
+        target_path = self.base_path / file_key
+        logger.info(f"Saving file to: {target_path}")
+        file_obj.save(target_path)
+
+        file_size = target_path.stat().st_size
+        content_type = mimetypes.guess_type(original_filename)[0] or "application/octet-stream"
+
+        return {
+            "file_key": file_key,
+            "file_url": str(target_path.resolve()),
+            "file_size": file_size,
+            "content_type": content_type,
+            "bucket_name": None,
+            "storage_path": str(target_path.resolve()),
+        }
+
+    def delete_file(self, file_key: str) -> bool:
+        target_path = self.base_path / file_key
+        if not target_path.exists():
+            logger.warning("File not found for deletion: %s", target_path)
+            return False
+        target_path.unlink()
+        return True
+
+    def get_file_content(self, file_key: str):
+        target_path = self.base_path / file_key
+        if not target_path.exists():
+            logger.error("File not found: %s", target_path)
+            return None
+        return target_path.read_bytes()
+
+    def get_file_metadata(self, file_key: str):
+        target_path = self.base_path / file_key
+        if not target_path.exists():
+            return None
+        stat = target_path.stat()
+        return {
+            "file_key": file_key,
+            "file_size": stat.st_size,
+            "content_type": mimetypes.guess_type(target_path.name)[0] or "application/octet-stream",
+            "last_modified": stat.st_mtime,
+            "metadata": {},
+        }
+
+    def generate_presigned_url(self, file_key: str, expiration: int = 3600):
+        # For local storage we don't generate presigned URLs; return direct path
+        target_path = self.base_path / file_key
+        if target_path.exists():
+            return str(target_path.resolve())
+        return None
 
 class CloudflareR2Storage:
     def __init__(self):
@@ -294,31 +362,25 @@ class CloudflareR2Storage:
                 logger.error(f"File retrieval error: {e}")
             return None
 
-# Create a global instance
-r2_storage = None
+# Create a global storage instance (local by default)
+storage_backend = None
+storage_base_path = None
 
-def get_r2_storage():
-    """Get or create R2 storage instance"""
-    global r2_storage
-    if r2_storage is None:
-        r2_storage = CloudflareR2Storage()
-    return r2_storage
 
-def initialize_r2_storage():
-    """Initialize R2 storage connection and test it"""
-    global r2_storage
-    try:
-        r2_storage = CloudflareR2Storage()
-        
-        # Test the connection
-        if r2_storage.test_connection():
-            logger.info("R2 storage initialized and tested successfully")
-        else:
-            logger.warning("R2 storage initialized but connection test failed")
-            
-        return r2_storage
-    except Exception as e:
-        logger.error("Failed to initialize R2 storage")
-        if current_app and current_app.debug:
-            logger.error(f"R2 storage initialization error: {e}")
-        raise
+def initialize_storage(base_path: str):
+    """Initialize storage based on environment (local filesystem by default)."""
+    global storage_backend, storage_base_path
+    # Avoid loading any cloud credentials in non-production usage
+    storage_base_path = base_path
+    storage_backend = LocalFileStorage(base_path)
+    return storage_backend
+
+
+def get_storage():
+    global storage_backend, storage_base_path
+    if storage_backend is None:
+        # Lazy-init to a safe local path if not already set
+        default_path = storage_base_path or "./uploads"
+        storage_base_path = default_path
+        storage_backend = LocalFileStorage(default_path)
+    return storage_backend

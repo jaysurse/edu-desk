@@ -12,7 +12,10 @@ import AuthForm from "./components/AuthForm";
 import Footer from "./components/Footer";
 import { doSignOut } from "./firebase/auth";
 
-  const API_BASE = "https://edudesk.onrender.com";
+// Use localhost:10000 for development, production URL for deployed app
+const API_BASE = import.meta.env.DEV 
+  ? "http://localhost:10000" 
+  : "https://edudesk.onrender.com";
 
 function App() {
   // UI State
