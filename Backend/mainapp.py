@@ -2,10 +2,20 @@ from flask import Flask
 from flask_cors import CORS
 from config import config
 import os
+import logging
 from routes.files import files_bp
 from utils.auth import initialize_firebase
 from utils.firestore_db import initialize_firestore
-from utils.storage import initialize_r2_storage
+from utils.storage import initialize_storage, get_storage
+
+# Environment detection
+ENV = os.getenv("ENV", "local").lower()
+STORAGE_ROOT = "/var/data" if ENV == "production" else os.path.abspath("uploads")
+os.makedirs(STORAGE_ROOT, exist_ok=True)
+# Export for helper modules
+os.environ["FILE_STORAGE_PATH"] = STORAGE_ROOT
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(config_name=None):
@@ -15,8 +25,23 @@ def create_app(config_name=None):
     app = Flask(__name__)
     app.config.from_object(config[config_name])  # Use the dictionary
 
-    # Initialize CORS
-    CORS(app, origins=app.config["CORS_ORIGINS"])
+    app.config["ENVIRONMENT"] = ENV
+    app.config["FILE_STORAGE_PATH"] = STORAGE_ROOT
+
+    print(f"ENV: {ENV}")
+    print(f"Storage path: {STORAGE_ROOT}")
+
+    # Initialize CORS (allow Authorization header for authenticated calls)
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": app.config["CORS_ORIGINS"],
+                "allow_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+            }
+        },
+    )
 
     # Initialize Firebase Admin SDK
     with app.app_context():
@@ -42,15 +67,15 @@ def create_app(config_name=None):
             # import sys
             # sys.exit(1)
 
-    # Initialize Cloudflare R2 Storage
+    # Initialize storage (local by default; /var/data in production)
     with app.app_context():
         try:
-            initialize_r2_storage()
-            print("✅ Cloudflare R2 storage initialized successfully")
+            initialize_storage(STORAGE_ROOT)
+            print("✅ File storage initialized successfully")
         except Exception as e:
-            print(f"❌ Failed to initialize R2 storage: {e}")
+            print(f"❌ Failed to initialize file storage: {e}")
             print("⚠️  File upload/download features will not work!")
-            # Uncomment to exit if R2 is critical
+            # Uncomment to exit if storage is critical
             # import sys
             # sys.exit(1)
 
@@ -66,7 +91,7 @@ def create_app(config_name=None):
             "services": {
                 "firebase": "initialized",
                 "firestore": "initialized",
-                "r2_storage": "initialized",
+                "storage": "initialized",
             },
         }, 200
 
@@ -75,7 +100,7 @@ def create_app(config_name=None):
     def detailed_health_check():
         from utils.auth import get_firebase_app
         from utils.firestore_db import get_firestore_db
-        from utils.storage import get_r2_storage
+        from utils.storage import get_storage
 
         services = {}
         overall_status = "healthy"
@@ -98,12 +123,12 @@ def create_app(config_name=None):
             services["firestore"] = f"error: {str(e)}"
             overall_status = "degraded"
 
-        # Check R2 Storage
+        # Check Storage
         try:
-            r2_storage = get_r2_storage()
-            services["r2_storage"] = "connected" if r2_storage else "disconnected"
+            storage = get_storage()
+            services["storage"] = "connected" if storage else "disconnected"
         except Exception as e:
-            services["r2_storage"] = f"error: {str(e)}"
+            services["storage"] = f"error: {str(e)}"
             overall_status = "degraded"
 
         return {
@@ -159,35 +184,24 @@ def create_app(config_name=None):
                 "error": str(e),
             }, 500
 
-    # Test R2 storage connection
-    @app.route("/api/test-r2")
-    def test_r2():
+    # Test storage connection
+    @app.route("/api/test-storage")
+    def test_storage():
         try:
-            from utils.storage import get_r2_storage
+            from utils.storage import get_storage
 
-            r2_storage = get_r2_storage()
+            storage = get_storage()
 
-            # Test the connection using the test_connection method
-            connection_test = r2_storage.test_connection()
-
-            if connection_test:
-                return {
-                    "status": "connected",
-                    "message": "R2 storage connection successful",
-                    "bucket": r2_storage.bucket_name,
-                    "endpoint": r2_storage.endpoint_url,
-                }, 200
-            else:
-                return {
-                    "status": "error",
-                    "message": "R2 storage connection test failed",
-                    "bucket": r2_storage.bucket_name,
-                }, 503
+            return {
+                "status": "connected" if storage else "disconnected",
+                "message": "Storage backend available",
+                "base_path": app.config.get("FILE_STORAGE_PATH"),
+            }, 200
 
         except Exception as e:
             return {
                 "status": "error",
-                "message": "R2 storage connection failed",
+                "message": "Storage connection failed",
                 "error": str(e),
             }, 500
 
@@ -199,7 +213,7 @@ def create_app(config_name=None):
             "version": "2.0",
             "description": "API for uploading, sharing, and managing academic notes",
             "features": [
-                "File upload to Cloudflare R2",
+                "File upload to local/Render storage path",
                 "Firebase authentication",
                 "Firestore database",
                 "Note sharing and search",

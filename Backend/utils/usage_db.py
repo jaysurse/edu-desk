@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 from utils.firestore_db import get_firestore_db
+import os
 import logging
 from firebase_admin import firestore
 
@@ -8,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 class UsageTracker:
     def __init__(self):
-        self.db = get_firestore_db()
+        self.env = os.getenv("ENV", "local").lower()
+        self.disabled = self.env != "production"
+        self.db = None if self.disabled else get_firestore_db()
         self.collection_name = 'usage_tracking'
         
         # Cloudflare R2 Free Tier Limits
@@ -56,6 +59,9 @@ class UsageTracker:
     
     def initialize_storage_tracking(self) -> Dict:
         """Initialize cumulative storage tracking (never resets)"""
+        if self.disabled:
+            return 0
+
         doc_id = self.get_storage_document_id()
         now = datetime.now(timezone.utc)
         
@@ -95,6 +101,17 @@ class UsageTracker:
     
     def get_current_operations(self) -> Dict:
         """Get current month's operations statistics"""
+        if self.disabled:
+            now = datetime.now(timezone.utc)
+            return {
+                'month_key': self.get_current_month_key(),
+                'created_at': now,
+                'last_updated': now,
+                'class_a_operations': 0,
+                'class_b_operations': 0,
+                'reset_date': datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+            }
+
         doc_id = self.get_usage_document_id()
         
         try:
@@ -119,6 +136,14 @@ class UsageTracker:
     
     def get_current_usage(self) -> Dict:
         """Get combined current usage (storage + operations)"""
+        if self.disabled:
+            return {
+                'month_key': self.get_current_month_key(),
+                'storage_bytes': 0,
+                'class_a_operations': 0,
+                'class_b_operations': 0,
+            }
+
         storage_bytes = self.get_current_storage()
         operations = self.get_current_operations()
         
@@ -388,6 +413,9 @@ def track_usage(operation_type: str, check_limits: bool = True):
     def decorator(func):
         def wrapper(*args, **kwargs):
             tracker = get_usage_tracker()
+
+            if tracker.disabled:
+                return func(*args, **kwargs)
             
             # For upload operations, we need to check the file size
             additional_storage = 0
