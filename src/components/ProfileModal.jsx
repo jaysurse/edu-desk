@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { IoMdClose } from "react-icons/io";
-import { FaEdit, FaCheck, FaTimes } from "react-icons/fa";
+import { FaEdit, FaCheck, FaTimes, FaEye, FaDownload, FaTrash } from "react-icons/fa";
 
 const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, downloadNote }) => {
   const [activeTab, setActiveTab] = useState("profile");
@@ -10,6 +10,7 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
   const [userStats, setUserStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [previewNote, setPreviewNote] = useState(null);
   const [editFormData, setEditFormData] = useState({
     name: "",
     college: "",
@@ -426,16 +427,22 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
                       </p>
                       <div className="flex gap-2 mt-4">
                         <button
-                          onClick={() => downloadNote && downloadNote(note)}
-                          className="flex-1 text-xs px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium"
+                          onClick={() => setPreviewNote(note)}
+                          className="flex-1 text-xs px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition font-medium flex items-center justify-center gap-1"
                         >
-                          📥 Download
+                          <FaEye /> Preview
+                        </button>
+                        <button
+                          onClick={() => downloadNote && downloadNote(note)}
+                          className="flex-1 text-xs px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium flex items-center justify-center gap-1"
+                        >
+                          <FaDownload /> Download
                         </button>
                         <button
                           onClick={() => deleteNote && deleteNote(note)}
-                          className="flex-1 text-xs px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition font-medium"
+                          className="flex-1 text-xs px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition font-medium flex items-center justify-center gap-1"
                         >
-                          🗑️ Delete
+                          <FaTrash /> Delete
                         </button>
                       </div>
                     </div>
@@ -468,10 +475,16 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
                       </p>
                       <div className="flex gap-2 mt-4">
                         <button
-                          onClick={() => downloadNote && downloadNote(note)}
-                          className="w-full text-xs px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium"
+                          onClick={() => setPreviewNote(note)}
+                          className="flex-1 text-xs px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition font-medium flex items-center justify-center gap-1"
                         >
-                          📥 Download
+                          <FaEye /> Preview
+                        </button>
+                        <button
+                          onClick={() => downloadNote && downloadNote(note)}
+                          className="flex-1 text-xs px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium flex items-center justify-center gap-1"
+                        >
+                          <FaDownload /> Download
                         </button>
                       </div>
                     </div>
@@ -484,6 +497,133 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
           )}
         </div>
       </div>
+
+      {/* Note Preview Modal */}
+      {previewNote && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-slate-200 dark:border-slate-700">
+            {/* Preview Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-linear-to-r from-purple-600 to-blue-600">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white truncate">{previewNote.title || "Untitled Note"}</h2>
+                <p className="text-sm text-purple-100 mt-1">
+                  {previewNote.subject} • {previewNote.department} • {previewNote.semester || "N/A"}
+                </p>
+              </div>
+              <button
+                onClick={() => setPreviewNote(null)}
+                className="text-white hover:bg-white/20 rounded-full p-2 transition ml-4"
+              >
+                <IoMdClose size={24} />
+              </button>
+            </div>
+
+            {/* Preview Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                {/* Note Details */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wide">Uploaded By</p>
+                    <p className="text-sm text-slate-900 dark:text-white mt-2 font-medium">{previewNote.uploaded_by || "Anonymous"}</p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wide">Upload Date</p>
+                    <p className="text-sm text-slate-900 dark:text-white mt-2 font-medium">
+                      {previewNote.uploaded_at 
+                        ? new Date(previewNote.uploaded_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })
+                        : "Unknown"}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wide">File Size</p>
+                    <p className="text-sm text-slate-900 dark:text-white mt-2 font-medium">
+                      {previewNote.file_size 
+                        ? `${(previewNote.file_size / 1024 / 1024).toFixed(2)} MB`
+                        : "Unknown"}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wide">File Type</p>
+                    <p className="text-sm text-slate-900 dark:text-white mt-2 font-medium uppercase">
+                      {previewNote.file_type || previewNote.filename?.split('.').pop() || "PDF"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Note Description/Content Preview */}
+                <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-lg">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wide mb-3">Description</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {previewNote.description || "No description available for this note."}
+                  </p>
+                </div>
+
+                {/* PDF/File Preview (if supported) */}
+                {previewNote.file_url && (previewNote.file_type === 'pdf' || previewNote.filename?.endsWith('.pdf')) && (
+                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold tracking-wide mb-3">Document Preview</p>
+                    <div className="bg-white dark:bg-slate-900 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700" style={{ height: '400px' }}>
+                      <iframe
+                        src={`${previewNote.file_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                        className="w-full h-full"
+                        title="PDF Preview"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats if available */}
+                {(previewNote.downloads || previewNote.rating || previewNote.views) && (
+                  <div className="grid grid-cols-3 gap-3">
+                    {previewNote.views !== undefined && (
+                      <div className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 p-4 rounded-lg text-center border border-blue-200 dark:border-blue-700/30">
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{previewNote.views || 0}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Views</p>
+                      </div>
+                    )}
+                    {previewNote.downloads !== undefined && (
+                      <div className="bg-linear-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/20 p-4 rounded-lg text-center border border-emerald-200 dark:border-emerald-700/30">
+                        <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{previewNote.downloads || 0}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Downloads</p>
+                      </div>
+                    )}
+                    {previewNote.rating !== undefined && (
+                      <div className="bg-linear-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 p-4 rounded-lg text-center border border-amber-200 dark:border-amber-700/30">
+                        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{previewNote.rating?.toFixed(1) || 0} ⭐</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rating</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Preview Footer Actions */}
+            <div className="flex gap-3 p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <button
+                onClick={() => {
+                  downloadNote && downloadNote(previewNote);
+                  setPreviewNote(null);
+                }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold shadow-md"
+              >
+                <FaDownload /> Download Note
+              </button>
+              <button
+                onClick={() => setPreviewNote(null)}
+                className="px-6 py-3 bg-slate-400 text-white rounded-lg hover:bg-slate-500 transition font-semibold shadow-md"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
