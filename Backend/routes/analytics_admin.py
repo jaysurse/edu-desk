@@ -33,21 +33,23 @@ def get_popular_notes():
     try:
         days = int(request.args.get('days', 7))
         limit = int(request.args.get('limit', 10))
-        
         analytics_db = get_analytics_db()
         popular_notes = analytics_db.get_popular_notes(days, limit)
-        
         return jsonify({
-            'popular_notes': popular_notes,
-            'count': len(popular_notes),
-            'period_days': days
+            "success": True,
+            "data": {
+                'popular_notes': popular_notes,
+                'count': len(popular_notes),
+                'period_days': days
+            },
+            "error": None
         }), 200
-        
     except Exception as e:
         current_app.logger.error(f"Get popular notes error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve popular notes',
-            'code': 'POPULAR_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve popular notes"
         }), 500
 
 @analytics_bp.route('/stats/trending', methods=['GET'])
@@ -64,15 +66,19 @@ def get_trending_notes():
         trending = sorted(all_notes, key=lambda x: x.get('download_count', 0), reverse=True)[:limit]
         
         return jsonify({
-            'trending_notes': trending,
-            'count': len(trending)
+            "success": True,
+            "data": {
+                'trending_notes': trending,
+                'count': len(trending)
+            },
+            "error": None
         }), 200
-        
     except Exception as e:
         current_app.logger.error(f"Get trending notes error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve trending notes',
-            'code': 'TRENDING_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve trending notes"
         }), 500
 
 @analytics_bp.route('/stats/subjects', methods=['GET'])
@@ -84,15 +90,19 @@ def get_subject_stats():
         subject_stats = analytics_db.get_subject_statistics()
         
         return jsonify({
-            'subjects': subject_stats,
-            'count': len(subject_stats)
+            "success": True,
+            "data": {
+                'subjects': subject_stats,
+                'count': len(subject_stats)
+            },
+            "error": None
         }), 200
-        
     except Exception as e:
         current_app.logger.error(f"Get subject stats error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve subject statistics',
-            'code': 'SUBJECT_STATS_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve subject statistics"
         }), 500
 
 @analytics_bp.route('/stats/departments', methods=['GET'])
@@ -104,15 +114,19 @@ def get_department_stats():
         dept_stats = analytics_db.get_department_statistics()
         
         return jsonify({
-            'departments': dept_stats,
-            'count': len(dept_stats)
+            "success": True,
+            "data": {
+                'departments': dept_stats,
+                'count': len(dept_stats)
+            },
+            "error": None
         }), 200
-        
     except Exception as e:
         current_app.logger.error(f"Get department stats error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve department statistics',
-            'code': 'DEPT_STATS_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve department statistics"
         }), 500
 
 # ======================== ADMIN DASHBOARD ========================

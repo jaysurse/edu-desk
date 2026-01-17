@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import apiRequest from "../utils/api";
 // eslint-disable-next-line no-unused-vars
 import { motion } from "framer-motion";
 import {
@@ -335,26 +336,23 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
       const idToken = await user.getIdToken(true); // Force refresh to get a fresh token
       console.log("🔑 Got ID token, preparing upload...");
 
-      const API_BASE = import.meta.env.DEV ? "http://localhost:10000" : "https://edudesk.onrender.com";
-      console.log("📡 API Base:", API_BASE);
-      console.log("📤 Uploading file:", formData.file.name);
-      
+      // Use FormData and fetch directly for file upload, but handle response format
+      const API_BASE = import.meta.env.VITE_API_BASE_URL;
       const response = await fetch(`${API_BASE}/api/files/upload`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${idToken}`, // Send token for backend verification
+          Authorization: `Bearer ${idToken}`,
         },
         body: formDataToSend,
       });
-
-      console.log("📨 Response status:", response.status);
-      console.log("📨 Response ok:", response.ok);
-      
-      const result = await response.json();
-      console.log("📨 Response data:", result);
-
-      if (response.ok) {
-        addNote(result.note);
+      let result;
+      try {
+        result = await response.json();
+      } catch (e) {
+        result = { success: false, error: "Invalid server response", data: null };
+      }
+      if (result.success) {
+        addNote(result.data?.note);
         setFormData({
           title: "",
           subject: "",
@@ -365,7 +363,6 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       } else {
-        // Handle specific error codes from backend
         handleUploadError(result);
       }
     } catch (error) {
@@ -378,29 +375,7 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
 
   // Helper function to handle upload errors
   const handleUploadError = (result) => {
-    switch (result.code) {
-      case "INVALID_TOKEN":
-      case "NO_TOKEN":
-        alert("Authentication failed. Please sign in again.");
-        break;
-      case "NO_FILE":
-      case "NO_FILE_SELECTED":
-        alert("Please select a file to upload.");
-        break;
-      case "INVALID_FILE_TYPE":
-        alert(
-          "Invalid file type. Only PDF, DOC, DOCX, and TXT files are allowed."
-        );
-        break;
-      case "FILE_TOO_LARGE":
-        alert("File size must be less than 10MB.");
-        break;
-      case "MISSING_FIELDS":
-        alert("Please fill in all required fields.");
-        break;
-      default:
-        alert(result.error || "Upload failed. Please try again.");
-    }
+    alert(result.error || "Upload failed. Please try again.");
   };
 
   // Helper function to handle network errors
@@ -578,7 +553,7 @@ const UploadForm = ({ addNote, notes, onLoginClick, user }) => {
                     </div>
                     <button
                       onClick={() => {
-                        const API_BASE = import.meta.env.DEV ? "http://localhost:10000" : "https://edudesk.onrender.com";
+                        const API_BASE = import.meta.env.DEV ? "http://localhost:5000" : "https://edudesk.onrender.com";
                         window.open(
                           `${API_BASE}/api/files/download/${note.id}`,
                           "_blank"

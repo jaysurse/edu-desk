@@ -170,17 +170,18 @@ const AnalyticsDashboard = ({ API_BASE, isAdmin = false }) => {
             {/* Department Breakdown */}
             {Object.keys(stats.departments || {}).length > 0 && (
               <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                  📚 Departments
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  📚 Notes by Department
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {Object.entries(stats.departments).map(([dept, count]) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {Object.entries(stats.departments).sort((a, b) => b[1] - a[1]).map(([dept, count]) => (
                     <div
                       key={dept}
-                      className="bg-gray-50 dark:bg-gray-700 rounded p-4 text-center"
+                      className="bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-5 text-center border border-blue-200 dark:border-blue-700/30 hover:shadow-lg transition-all"
                     >
-                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{dept}</p>
-                      <p className="text-2xl font-bold text-blue-600">{count}</p>
+                      <p className="text-gray-700 dark:text-gray-300 font-semibold mb-2 truncate" title={dept}>{dept}</p>
+                      <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{count}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">notes</p>
                     </div>
                   ))}
                 </div>
@@ -190,17 +191,18 @@ const AnalyticsDashboard = ({ API_BASE, isAdmin = false }) => {
             {/* Subject Breakdown */}
             {Object.keys(stats.subjects || {}).length > 0 && (
               <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                  🎓 Subjects
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  🎓 Notes by Subject
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {Object.entries(stats.subjects).map(([subject, count]) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                  {Object.entries(stats.subjects).sort((a, b) => b[1] - a[1]).map(([subject, count]) => (
                     <div
                       key={subject}
-                      className="bg-gray-50 dark:bg-gray-700 rounded p-4 text-center"
+                      className="bg-linear-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-5 text-center border border-green-200 dark:border-green-700/30 hover:shadow-lg transition-all"
                     >
-                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{subject}</p>
-                      <p className="text-2xl font-bold text-green-600">{count}</p>
+                      <p className="text-gray-700 dark:text-gray-300 font-semibold mb-2 truncate" title={subject}>{subject}</p>
+                      <p className="text-3xl font-bold text-green-600 dark:text-green-400">{count}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">notes</p>
                     </div>
                   ))}
                 </div>

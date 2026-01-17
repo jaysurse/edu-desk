@@ -17,6 +17,7 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
     bio: "",
   });
 
+  // Refresh data when modal opens or when navigating between tabs
   useEffect(() => {
     if (isOpen && user) {
       fetchProfileData();
@@ -31,6 +32,13 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
       });
     }
   }, [isOpen, user]);
+
+  // Refresh likes when switching to likes tab
+  useEffect(() => {
+    if (isOpen && user && activeTab === "likes") {
+      fetchLikedNotes();
+    }
+  }, [activeTab]);
 
   // Update edit form when profile data changes
   useEffect(() => {
@@ -457,22 +465,35 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
           {/* Likes Tab */}
           {activeTab === "likes" && (
             <div className="space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-                ❤️ My Likes ({likedNotes?.length || 0})
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  ❤️ My Likes ({likedNotes?.length || 0})
+                </h3>
+                <button
+                  onClick={fetchLikedNotes}
+                  className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
               {likedNotes && likedNotes.length > 0 ? (
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                  {likedNotes.map((note, idx) => (
+                  {likedNotes.map((note) => (
                     <div
-                      key={idx}
+                      key={note.id}
                       className="bg-white dark:bg-slate-700/50 p-4 rounded-lg border border-slate-200 dark:border-slate-600 hover:shadow-md hover:border-red-300 dark:hover:border-red-600/50 transition"
                     >
                       <p className="font-semibold text-slate-900 dark:text-white truncate text-sm">
                         {note.title || "Untitled"}
                       </p>
                       <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                        <span className="font-medium">By: {note.uploaded_by || "Unknown"}</span> • {note.subject || "No subject"}
+                        <span className="font-medium">By: {note.uploader || note.uploaded_by || "Unknown"}</span> • {note.subject || "No subject"}
                       </p>
+                      {note.department && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          🏢 {note.department}
+                        </p>
+                      )}
                       <div className="flex gap-2 mt-4">
                         <button
                           onClick={() => setPreviewNote(note)}
@@ -481,7 +502,10 @@ const ProfileModal = ({ isOpen, onClose, user, API_BASE, notes, deleteNote, down
                           <FaEye /> Preview
                         </button>
                         <button
-                          onClick={() => downloadNote && downloadNote(note)}
+                          onClick={() => {
+                            const filename = note.filename || `${note.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+                            downloadNote && downloadNote(note.id, filename);
+                          }}
                           className="flex-1 text-xs px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium flex items-center justify-center gap-1"
                         >
                           <FaDownload /> Download

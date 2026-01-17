@@ -7,6 +7,14 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+# Import cache utilities
+try:
+    from utils.cache import cache_result
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    logger.warning("Cache not available for analytics")
+
 class AnalyticsDB:
     def __init__(self):
         """Initialize Firestore database client for analytics"""
@@ -51,7 +59,19 @@ class AnalyticsDB:
             return False
 
     def get_popular_notes(self, days: int = 7, limit: int = 10) -> List[Dict]:
-        """Get most downloaded notes in the last N days"""
+        """Get most downloaded notes in the last N days (cached for 10 min)"""
+        # Wrap in cache if available
+        if CACHE_AVAILABLE:
+            try:
+                from utils.cache import get_cache
+                cache = get_cache()
+                cache_key = f"popular_notes:{days}:{limit}"
+                cached = cache.get(cache_key)
+                if cached:
+                    return cached
+            except:
+                pass
+        
         try:
             from_date = datetime.now() - timedelta(days=days)
             
@@ -64,6 +84,13 @@ class AnalyticsDB:
                 note = doc.to_dict()
                 note['id'] = doc.id
                 notes.append(note)
+            
+            # Cache result if available
+            if CACHE_AVAILABLE:
+                try:
+                    cache.set(cache_key, notes, ttl=600)
+                except:
+                    pass
             
             return notes
         except Exception as e:

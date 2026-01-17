@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import apiRequest from "../utils/api";
 import { FaStar, FaComment, FaTrash, FaHeart } from "react-icons/fa";
 
-const RatingsComments = ({ noteId, userId, API_BASE }) => {
+const RatingsComments = ({ noteId, userId }) => {
   const [rating, setRating] = useState(0);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
@@ -15,52 +16,35 @@ const RatingsComments = ({ noteId, userId, API_BASE }) => {
   }, [noteId]);
 
   const fetchRatings = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/community/notes/${noteId}/ratings`);
-      if (response.ok) {
-        setRatings(await response.json());
-      }
-    } catch (error) {
-      console.error("Error fetching ratings:", error);
+    const res = await apiRequest(`/api/community/notes/${noteId}/ratings`);
+    if (res.success) {
+      setRatings(res.data);
     }
   };
 
   const fetchComments = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/community/notes/${noteId}/comments`);
-      if (response.ok) {
-        const data = await response.json();
-        setComments(data.comments || []);
-      }
-    } catch (error) {
-      console.error("Error fetching comments:", error);
+    const res = await apiRequest(`/api/community/notes/${noteId}/comments`);
+    if (res.success) {
+      setComments(res.data.comments || []);
     }
   };
 
   const submitRating = async (value) => {
     if (!userId) return;
-    
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(`${API_BASE}/api/community/notes/${noteId}/rate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ rating: value })
-      });
-
-      if (response.ok) {
-        setUserRating(value);
-        fetchRatings();
-      }
-    } catch (error) {
-      console.error("Error submitting rating:", error);
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    const res = await apiRequest(`/api/community/notes/${noteId}/rate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("authToken")}`
+      },
+      body: JSON.stringify({ rating: value })
+    });
+    if (res.success) {
+      setUserRating(value);
+      fetchRatings();
     }
+    setLoading(false);
   };
 
   const submitComment = async () => {

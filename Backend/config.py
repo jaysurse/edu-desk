@@ -6,23 +6,23 @@ load_dotenv()
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or os.urandom(24)
-    
-    # File upload settings
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
-    ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx', 'ppt', 'pptx'}
-    
+
+    # File upload settings (PDF only, max size from env)
+    MAX_CONTENT_LENGTH = int(os.environ.get('MAX_UPLOAD_SIZE_MB', 10)) * 1024 * 1024  # Default 10MB
+    ALLOWED_EXTENSIONS = {os.environ.get('ALLOWED_UPLOAD_TYPE', 'application/pdf').split('/')[-1]}  # Only 'pdf' by default
+
     # Firebase settings
     FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH')
     FIREBASE_CREDENTIALS_JSON = os.environ.get('FIREBASE_CREDENTIALS_JSON')
-    
+
     # R2 Storage settings
     R2_ACCOUNT_ID = os.environ.get('R2_ACCOUNT_ID')
     R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID')
     R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
     R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
     R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')
-    
-    # Firestore settings 
+
+    # Firestore settings
     FIRESTORE_PROJECT_ID = os.environ.get('FIRESTORE_PROJECT_ID')
 
 class DevelopmentConfig(Config):

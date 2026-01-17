@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import apiRequest from "../utils/api";
 import { FaDownload, FaHeart, FaClock, FaSearch } from "react-icons/fa";
 
-const UserDashboard = ({ userId, API_BASE }) => {
+const UserDashboard = ({ userId }) => {
   const [activeTab, setActiveTab] = useState("uploads");
   const [myNotes, setMyNotes] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -22,45 +23,29 @@ const UserDashboard = ({ userId, API_BASE }) => {
   }, [userId, activeTab]);
 
   const fetchMyNotes = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(`${API_BASE}/api/files/my-notes`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setMyNotes(data.notes || []);
+    setLoading(true);
+    const res = await apiRequest(`/api/files/my-notes`, {
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("authToken")}`
       }
-    } catch (error) {
-      console.error("Error fetching my notes:", error);
-    } finally {
-      setLoading(false);
+    });
+    if (res.success) {
+      setMyNotes(res.data.notes || []);
     }
+    setLoading(false);
   };
 
   const fetchFavorites = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(`${API_BASE}/api/community/favorites`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setFavorites(data.favorites || []);
+    setLoading(true);
+    const res = await apiRequest(`/api/community/favorites`, {
+      headers: {
+        "Authorization": `Bearer ${localStorage.getItem("authToken")}`
       }
-    } catch (error) {
-      console.error("Error fetching favorites:", error);
-    } finally {
-      setLoading(false);
+    });
+    if (res.success) {
+      setFavorites(res.data.favorites || []);
     }
+    setLoading(false);
   };
 
   const fetchRecentActivity = async () => {

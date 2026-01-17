@@ -9,3 +9,5 @@ firebase-admin==6.2.0
 gunicorn==21.2.0
 redis==5.0.0
 ratelimit==2.2.1
+Flask-Mail==0.9.1
+pytest==7.4.0

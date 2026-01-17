@@ -8,6 +8,17 @@ from utils.firestore_db import get_firestore_db
 from utils.analytics import AnalyticsDB
 from utils.usage_db import track_usage
 from utils.security import ContentValidator, rate_limit
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Import notifications if available
+try:
+    from utils.notifications import send_comment_notification, send_rating_notification
+    NOTIFICATIONS_AVAILABLE = True
+except ImportError:
+    NOTIFICATIONS_AVAILABLE = False
+    logger.warning("Notifications not available")
 
 community_bp = Blueprint('community', __name__)
 
@@ -42,11 +53,17 @@ def rate_note(current_user, note_id):
     try:
         data = request.get_json()
         rating = data.get('rating')
-        
+        if rating is None:
+            return jsonify({
+                "success": False,
+                "data": None,
+                "error": "Rating is required"
+            }), 400
         if not isinstance(rating, int) or not 1 <= rating <= 5:
             return jsonify({
-                'error': 'Rating must be an integer between 1 and 5',
-                'code': 'INVALID_RATING'
+                "success": False,
+                "data": None,
+                "error": "Rating must be an integer between 1 and 5"
             }), 400
         
         # Check if note exists
@@ -54,8 +71,9 @@ def rate_note(current_user, note_id):
         note = firestore_db.get_note(note_id)
         if not note:
             return jsonify({
-                'error': 'Note not found',
-                'code': 'NOTE_NOT_FOUND'
+                "success": False,
+                "data": None,
+                "error": "Note not found"
             }), 404
         
         ratings_db = get_ratings_db()
@@ -65,19 +83,38 @@ def rate_note(current_user, note_id):
         analytics_db = get_analytics_db()
         analytics_db.track_action('rate', current_user['uid'], note_id, {'rating': rating})
         
+        # Send notification to note owner
+        if NOTIFICATIONS_AVAILABLE:
+            try:
+                owner_email = note.get('uploader_email')
+                if owner_email and owner_email != current_user.get('email'):
+                    send_rating_notification(
+                        user_email=owner_email,
+                        user_name=current_user.get('name', 'Someone'),
+                        note_title=note.get('title', 'your note'),
+                        rating=rating,
+                        note_id=note_id
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send rating notification: {e}")
+        
         # Get updated ratings
         ratings_stats = ratings_db.get_note_ratings(note_id)
         
         return jsonify({
-            'message': 'Rating added successfully',
-            'ratings': ratings_stats
+            "success": True,
+            "data": {
+                'message': 'Rating added successfully',
+                'ratings': ratings_stats
+            },
+            "error": None
         }), 201
-        
     except Exception as e:
         current_app.logger.error(f"Rate note error: {str(e)}")
         return jsonify({
-            'error': 'Failed to rate note',
-            'code': 'RATING_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to rate note"
         }), 500
 
 @community_bp.route('/notes/<note_id>/ratings', methods=['GET'])
@@ -89,20 +126,24 @@ def get_note_ratings(note_id):
         note = firestore_db.get_note(note_id)
         if not note:
             return jsonify({
-                'error': 'Note not found',
-                'code': 'NOTE_NOT_FOUND'
+                "success": False,
+                "data": None,
+                "error": "Note not found"
             }), 404
         
         ratings_db = get_ratings_db()
         ratings_stats = ratings_db.get_note_ratings(note_id)
-        
-        return jsonify(ratings_stats), 200
-        
+        return jsonify({
+            "success": True,
+            "data": ratings_stats,
+            "error": None
+        }), 200
     except Exception as e:
         current_app.logger.error(f"Get ratings error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve ratings',
-            'code': 'RATINGS_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve ratings"
         }), 500
 
 # ======================== COMMENTS ========================
@@ -115,25 +156,28 @@ def add_comment(current_user, note_id):
     """Add a comment to a note"""
     try:
         data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({
+                "success": False,
+                "data": None,
+                "error": "Comment text is required"
+            }), 400
         text = data.get('text', '').strip()
-        
-        # Validate comment
         is_valid, error_msg = ContentValidator.validate_comment(text)
         if not is_valid:
             return jsonify({
-                'error': error_msg,
-                'code': 'INVALID_COMMENT'
+                "success": False,
+                "data": None,
+                "error": error_msg
             }), 400
-        
-        # Check if note exists
         firestore_db = get_firestore_db()
         note = firestore_db.get_note(note_id)
         if not note:
             return jsonify({
-                'error': 'Note not found',
-                'code': 'NOTE_NOT_FOUND'
+                "success": False,
+                "data": None,
+                "error": "Note not found"
             }), 404
-        
         ratings_db = get_ratings_db()
         comment_id = ratings_db.add_comment(
             note_id,
@@ -142,53 +186,64 @@ def add_comment(current_user, note_id):
             current_user.get('name', 'Anonymous'),
             text
         )
-        
-        if not comment_id:
-            return jsonify({
-                'error': 'Failed to add comment',
-                'code': 'COMMENT_ERROR'
-            }), 500
-        
+        if NOTIFICATIONS_AVAILABLE:
+            try:
+                owner_email = note.get('uploader_email')
+                if owner_email and owner_email != current_user.get('email'):
+                    send_comment_notification(
+                        user_email=owner_email,
+                        user_name=current_user.get('name', 'Someone'),
+                        note_title=note.get('title', 'your note'),
+                        comment=text,
+                        note_id=note_id
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send comment notification: {e}")
         return jsonify({
-            'message': 'Comment added successfully',
-            'comment_id': comment_id
+            "success": True,
+            "data": {
+                'message': 'Comment added successfully',
+                'comment_id': comment_id
+            },
+            "error": None
         }), 201
-        
     except Exception as e:
         current_app.logger.error(f"Add comment error: {str(e)}")
         return jsonify({
-            'error': 'Failed to add comment',
-            'code': 'COMMENT_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to add comment"
         }), 500
 
 @community_bp.route('/notes/<note_id>/comments', methods=['GET'])
 @track_usage('get_metadata')
-def get_comments(note_id):
-    """Get all comments for a note"""
+def get_note_comments(note_id):
     try:
         limit = int(request.args.get('limit', 50))
-        
         firestore_db = get_firestore_db()
         note = firestore_db.get_note(note_id)
         if not note:
             return jsonify({
-                'error': 'Note not found',
-                'code': 'NOTE_NOT_FOUND'
+                "success": False,
+                "data": None,
+                "error": "Note not found"
             }), 404
-        
         ratings_db = get_ratings_db()
         comments = ratings_db.get_note_comments(note_id, limit)
-        
         return jsonify({
-            'comments': comments,
-            'count': len(comments)
+            "success": True,
+            "data": {
+                'comments': comments,
+                'count': len(comments)
+            },
+            "error": None
         }), 200
-        
     except Exception as e:
         current_app.logger.error(f"Get comments error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve comments',
-            'code': 'COMMENTS_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve comments"
         }), 500
 
 @community_bp.route('/comments/<comment_id>', methods=['DELETE'])
@@ -566,4 +621,140 @@ def delete_collection(current_user, collection_id):
         return jsonify({
             'error': 'Failed to delete collection',
             'code': 'DELETE_ERROR'
+        }), 500
+
+# ======================== FRONTEND COMPATIBILITY ROUTES ========================
+
+@community_bp.route('/user-profile', methods=['GET'])
+@require_authentication
+@track_usage('get_metadata')
+def get_user_profile_alias(current_user):
+    """Get current user's profile (frontend compatibility route)"""
+    try:
+        user_profiles_db = get_user_profiles_db()
+        profile = user_profiles_db.get_user_profile(current_user['uid'])
+        
+        if not profile:
+            # Return empty profile if none exists yet
+            return jsonify({
+                'user_id': current_user['uid'],
+                'email': current_user.get('email', ''),
+                'name': current_user.get('name', ''),
+                'photo_url': current_user.get('picture', ''),
+                'bio': '',
+                'college': '',
+                'recent_notes': []
+            }), 200
+        
+        # Get user's recent notes
+        firestore_db = get_firestore_db()
+        user_notes = firestore_db.get_notes_by_user(current_user['uid'], limit=10)
+        profile['recent_notes'] = user_notes
+        
+        return jsonify(profile), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Get user profile error: {str(e)}")
+        return jsonify({
+            'error': 'Failed to retrieve user profile',
+            'code': 'PROFILE_ERROR'
+        }), 500
+
+@community_bp.route('/update-profile', methods=['POST', 'PUT'])
+@require_authentication
+@track_usage('update')
+def update_user_profile_alias(current_user):
+    """Update current user's profile (frontend compatibility route)"""
+    try:
+        data = request.get_json()
+        
+        user_profiles_db = get_user_profiles_db()
+        user_profiles_db.create_or_update_profile(current_user['uid'], {
+            'email': current_user.get('email'),
+            'name': data.get('name', current_user.get('name', '')),
+            'photo_url': data.get('photo_url', ''),
+            'bio': data.get('bio', ''),
+            'college': data.get('college', '')
+        })
+        
+        profile = user_profiles_db.get_user_profile(current_user['uid'])
+        return jsonify(profile), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Update profile error: {str(e)}")
+        return jsonify({
+            'error': 'Failed to update profile',
+            'code': 'UPDATE_ERROR'
+        }), 500
+
+@community_bp.route('/user-favorites', methods=['GET'])
+@require_authentication
+@track_usage('get_metadata')
+def get_user_favorites_alias(current_user):
+    """Get user's favorites (frontend compatibility route)"""
+    try:
+        limit = int(request.args.get('limit', 100))
+        
+        favorites_db = get_favorites_db()
+        favorite_note_ids = favorites_db.get_user_favorites(current_user['uid'], limit)
+        
+        # Get full note details
+        firestore_db = get_firestore_db()
+        favorites = []
+        for note_id in favorite_note_ids:
+            note = firestore_db.get_note(note_id)
+            if note:
+                favorites.append(note)
+        
+        return jsonify({
+            'favorites': favorites,
+            'count': len(favorites)
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Get favorites error: {str(e)}")
+        return jsonify({
+            'error': 'Failed to retrieve favorites',
+            'code': 'FAVORITES_ERROR'
+        }), 500
+
+@community_bp.route('/user-stats', methods=['GET'])
+@require_authentication
+@track_usage('get_metadata')
+def get_user_stats(current_user):
+    """Get user statistics"""
+    try:
+        firestore_db = get_firestore_db()
+        favorites_db = get_favorites_db()
+        
+        # Get user's notes count
+        user_notes = firestore_db.get_notes_by_user(current_user['uid'])
+        notes_count = len(user_notes)
+        
+        # Get total downloads from note metadata
+        total_downloads = 0
+        for note in user_notes:
+            total_downloads += note.get('download_count', 0)
+        
+        # Get favorites count
+        favorites_count = len(favorites_db.get_user_favorites(current_user['uid']))
+        
+        # Get collections count
+        collections_count = len(favorites_db.get_user_collections(current_user['uid']))
+        
+        stats = {
+            'notes_shared': notes_count,
+            'total_downloads': total_downloads,
+            'favorites_count': favorites_count,
+            'ratings_given': 0,  # Placeholder - would need additional DB query
+            'collections_count': collections_count
+        }
+        
+        return jsonify(stats), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Get user stats error: {str(e)}")
+        return jsonify({
+            'error': 'Failed to retrieve user stats',
+            'code': 'STATS_ERROR'
         }), 500

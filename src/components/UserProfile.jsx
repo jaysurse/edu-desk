@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import apiRequest from "../utils/api";
 import { FaUser, FaMedal, FaTrophy, FaFileAlt, FaEdit, FaSave, FaTimes } from "react-icons/fa";
 
-const UserProfile = ({ user, API_BASE }) => {
+const UserProfile = ({ user }) => {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,32 +21,16 @@ const UserProfile = ({ user, API_BASE }) => {
   }, [user]);
 
   const fetchProfile = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/community/profiles/${user.uid}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data.profile || {});
-        setEditData({
-          name: data.profile?.display_name || user.displayName || "",
-          bio: data.profile?.bio || "",
-          photo_url: data.profile?.photo_url || user.photoURL || ""
-        });
-      } else {
-        setProfile({
-          user_id: user.uid,
-          display_name: user.displayName || user.email?.split('@')[0],
-          photo_url: user.photoURL,
-          reputation: 0,
-          badges: []
-        });
-        setEditData({
-          name: user.displayName || user.email?.split('@')[0] || "",
-          bio: "",
-          photo_url: user.photoURL || ""
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
+    setLoading(true);
+    const res = await apiRequest(`/api/community/profiles/${user.uid}`);
+    if (res.success) {
+      setProfile(res.data.profile || {});
+      setEditData({
+        name: res.data.profile?.display_name || user.displayName || "",
+        bio: res.data.profile?.bio || "",
+        photo_url: res.data.profile?.photo_url || user.photoURL || ""
+      });
+    } else {
       setProfile({
         user_id: user.uid,
         display_name: user.displayName || user.email?.split('@')[0],
@@ -53,7 +38,13 @@ const UserProfile = ({ user, API_BASE }) => {
         reputation: 0,
         badges: []
       });
+      setEditData({
+        name: user.displayName || user.email?.split('@')[0] || "",
+        bio: "",
+        photo_url: user.photoURL || ""
+      });
     }
+    setLoading(false);
   };
 
   const fetchStats = async () => {

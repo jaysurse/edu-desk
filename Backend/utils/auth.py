@@ -125,29 +125,24 @@ def require_authentication(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         logger.debug("Performing authentication check")
-        
-        # Get token from request
         id_token = get_token_from_header()
         if not id_token:
             logger.info("Authentication failed: No token provided")
             return jsonify({
-                'error': 'No authentication token provided',
-                'code': 'NO_TOKEN'
+                "success": False,
+                "data": None,
+                "error": "No authentication token provided"
             }), 401
-        
-        # Verify token
         decoded_token = verify_firebase_token(id_token)
         if not decoded_token:
             logger.info("Authentication failed: Invalid token")
             return jsonify({
-                'error': 'Invalid or expired authentication token',
-                'code': 'INVALID_TOKEN'
+                "success": False,
+                "data": None,
+                "error": "Invalid or expired authentication token"
             }), 401
-        
         logger.debug("Authentication successful")
-        # Add current user to kwargs and call the original function
         return f(current_user=decoded_token, *args, **kwargs)
-    
     return decorated_function
 
 def require_authentication_optional(f):
