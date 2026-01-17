@@ -124,7 +124,10 @@ class FirestoreNotesDB:
             doc_data['college_id'] = note_data.get('college_id', ids['college_id'])
             doc_data['department_id'] = note_data.get('department_id', ids['department_id'])
             doc_data['subject_id'] = note_data.get('subject_id', ids['subject_id'])
-            # Add server timestamp to the copy only
+            # Add lifecycle/integrity fields with defaults
+            doc_data['status'] = note_data.get('status', 'published')
+            doc_data['is_deleted'] = note_data.get('is_deleted', False)
+            doc_data['version'] = note_data.get('version', 1)
             doc_data['created_at'] = firestore.SERVER_TIMESTAMP
             doc_data['updated_at'] = firestore.SERVER_TIMESTAMP
             doc_ref = self.db.collection(self.notes_collection).document()
@@ -307,13 +310,17 @@ class FirestoreNotesDB:
         try:
             # Add updated timestamp
             update_data['updated_at'] = firestore.SERVER_TIMESTAMP
-            
+            # Increment version
             doc_ref = self.db.collection(self.notes_collection).document(note_id)
+            doc = doc_ref.get()
+            current_version = 1
+            if doc.exists:
+                doc_data = doc.to_dict()
+                current_version = doc_data.get('version', 1)
+            update_data['version'] = current_version + 1
             doc_ref.update(update_data)
-            
             logger.info("Note updated successfully")
             return True
-            
         except Exception as e:
             logger.error("Error updating note in Firestore")
             if current_app and current_app.debug:
@@ -322,25 +329,24 @@ class FirestoreNotesDB:
     
     def delete_note(self, note_id: str) -> bool:
         """
-        Delete a note document
-        
+        Soft delete a note: set is_deleted = True and update updated_at
         Args:
             note_id: Document ID of the note
-            
         Returns:
             bool: True if successful, False otherwise
         """
         try:
             doc_ref = self.db.collection(self.notes_collection).document(note_id)
-            doc_ref.delete()
-            
-            logger.info("Note deleted successfully")
+            doc_ref.update({
+                'is_deleted': True,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+            logger.info("Note soft-deleted (is_deleted=True)")
             return True
-            
         except Exception as e:
-            logger.error("Error deleting note from Firestore")
+            logger.error("Error soft-deleting note from Firestore")
             if current_app and current_app.debug:
-                logger.error(f"Delete note error: {e}")
+                logger.error(f"Soft delete note error: {e}")
             return False
     
     def increment_download_count(self, note_id: str) -> bool:
@@ -383,17 +389,16 @@ class FirestoreNotesDB:
         try:
             notes_ref = self.db.collection(self.notes_collection)
             all_docs = notes_ref.order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit * 3).stream()
-            
             query_lower = query.lower()
             matching_notes = []
-            
             for doc in all_docs:
                 if len(matching_notes) >= limit:
                     break
-                    
                 note_data = doc.to_dict()
                 note_data['id'] = doc.id
-                
+                # Only include published and not deleted
+                if note_data.get('status', 'published') != 'published' or note_data.get('is_deleted', False):
+                    continue
                 # Search in title, subject, and uploader fields
                 searchable_fields = [
                     note_data.get('title', '').lower(),
@@ -402,7 +407,6 @@ class FirestoreNotesDB:
                     note_data.get('department', '').lower(),
                     note_data.get('file_name', '').lower()
                 ]
-                
                 if any(query_lower in field for field in searchable_fields):
                     # Convert timestamps for JSON serialization
                     if 'created_at' in note_data and note_data['created_at']:
@@ -412,13 +416,10 @@ class FirestoreNotesDB:
                     if 'last_downloaded' in note_data and note_data['last_downloaded']:
                         note_data['last_downloaded'] = note_data['last_downloaded'].isoformat()
                     matching_notes.append(note_data)
-            
             logger.info(f"Search completed: found {len(matching_notes)} matching notes")
             return matching_notes
-            
         except Exception as e:
             logger.error("Error searching notes")
-            
             if current_app and current_app.debug:
                 logger.error(f"Search notes error: {e}")
             return []
