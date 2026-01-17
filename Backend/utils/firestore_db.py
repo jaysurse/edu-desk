@@ -1,3 +1,85 @@
+# Helper to resolve default college/department/subject IDs
+def get_default_college_department_subject_ids():
+    college_db = FirestoreCollegeDB()
+    college = college_db.get_or_create_default_college()
+    dept_db = FirestoreDepartmentDB()
+    dept = dept_db.get_or_create_default_department(college['id'])
+    subj_db = FirestoreSubjectDB()
+    subj = subj_db.get_or_create_default_subject(dept['id'])
+    return {
+        'college_id': college['id'],
+        'department_id': dept['id'],
+        'subject_id': subj['id']
+    }
+class FirestoreCollegeDB:
+    def __init__(self):
+        self.db = firestore.client()
+        self.colleges_collection = 'colleges'
+    def get_or_create_default_college(self):
+        default_code = 'DEFAULT_COLLEGE'
+        default_name = 'Default College'
+        colleges = self.db.collection(self.colleges_collection).where('code', '==', default_code).stream()
+        for doc in colleges:
+            college = doc.to_dict()
+            college['id'] = doc.id
+            return college
+        # Not found, create
+        doc_ref = self.db.collection(self.colleges_collection).document()
+        college_data = {
+            'name': default_name,
+            'code': default_code,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        doc_ref.set(college_data)
+        college_data['id'] = doc_ref.id
+        return college_data
+
+class FirestoreDepartmentDB:
+    def __init__(self):
+        self.db = firestore.client()
+        self.departments_collection = 'departments'
+    def get_or_create_default_department(self, college_id):
+        default_code = 'DEFAULT_DEPT'
+        default_name = 'Default Department'
+        depts = self.db.collection(self.departments_collection).where('code', '==', default_code).where('college_id', '==', college_id).stream()
+        for doc in depts:
+            dept = doc.to_dict()
+            dept['id'] = doc.id
+            return dept
+        # Not found, create
+        doc_ref = self.db.collection(self.departments_collection).document()
+        dept_data = {
+            'college_id': college_id,
+            'name': default_name,
+            'code': default_code
+        }
+        doc_ref.set(dept_data)
+        dept_data['id'] = doc_ref.id
+        return dept_data
+
+class FirestoreSubjectDB:
+    def __init__(self):
+        self.db = firestore.client()
+        self.subjects_collection = 'subjects'
+    def get_or_create_default_subject(self, department_id):
+        default_code = 'DEFAULT_SUBJECT'
+        default_name = 'Default Subject'
+        subjects = self.db.collection(self.subjects_collection).where('code', '==', default_code).where('department_id', '==', department_id).stream()
+        for doc in subjects:
+            subj = doc.to_dict()
+            subj['id'] = doc.id
+            return subj
+        # Not found, create
+        doc_ref = self.db.collection(self.subjects_collection).document()
+        subj_data = {
+            'department_id': department_id,
+            'name': default_name,
+            'code': default_code,
+            'semester': 1
+        }
+        doc_ref.set(subj_data)
+        subj_data['id'] = doc_ref.id
+        return subj_data
 # Backend/utils/firestore_db.py
 from firebase_admin import firestore
 from typing import Dict, List, Optional
@@ -35,25 +117,25 @@ class FirestoreNotesDB:
             str: Document ID of the created note
         """
         try:
-            # Create a copy of the data to avoid modifying the original
+            from utils.firestore_db import get_default_college_department_subject_ids
+            ids = get_default_college_department_subject_ids()
             doc_data = note_data.copy()
-            
+            # Attach default college/department/subject if missing
+            doc_data['college_id'] = note_data.get('college_id', ids['college_id'])
+            doc_data['department_id'] = note_data.get('department_id', ids['department_id'])
+            doc_data['subject_id'] = note_data.get('subject_id', ids['subject_id'])
             # Add server timestamp to the copy only
             doc_data['created_at'] = firestore.SERVER_TIMESTAMP
             doc_data['updated_at'] = firestore.SERVER_TIMESTAMP
-            
-            # Create document with auto-generated ID
             doc_ref = self.db.collection(self.notes_collection).document()
             doc_ref.set(doc_data)
-            
             logger.info("Note created successfully")
             return doc_ref.id
-            
         except Exception as e:
             logger.error("Error creating note in Firestore")
             if current_app and current_app.debug:
                 logger.error(f"Create note error: {e}")
-            raise Exception("Failed to save note metadata")    
+            raise Exception("Failed to save note metadata")
         
         
     def get_note(self, note_id: str) -> Optional[Dict]:

@@ -29,6 +29,8 @@ class UserProfilesDB:
             bool: True if successful
         """
         try:
+            from utils.firestore_db import get_default_college_department_subject_ids
+            ids = get_default_college_department_subject_ids()
             profile_data = {
                 'user_id': user_id,
                 'email': user_data.get('email', ''),
@@ -40,9 +42,10 @@ class UserProfilesDB:
                 'average_rating': 0,
                 'badges': [],
                 'joined_at': firestore.SERVER_TIMESTAMP,
-                'updated_at': firestore.SERVER_TIMESTAMP
+                'updated_at': firestore.SERVER_TIMESTAMP,
+                'college_id': user_data.get('college_id', ids['college_id']),
+                'department_id': user_data.get('department_id', ids['department_id'])
             }
-            
             self.db.collection(self.users_collection).document(user_id).set(profile_data, merge=True)
             logger.info(f"User profile created/updated for {user_id}")
             return True

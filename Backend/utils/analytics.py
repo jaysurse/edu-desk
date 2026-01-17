@@ -42,16 +42,41 @@ class AnalyticsDB:
         try:
             import uuid
             event_id = str(uuid.uuid4())
-            
+            # Try to resolve college_id from metadata, note, or user
+            college_id = None
+            if metadata and 'college_id' in metadata:
+                college_id = metadata['college_id']
+            elif note_id:
+                try:
+                    from utils.firestore_db import FirestoreNotesDB
+                    note = FirestoreNotesDB().get_note(note_id)
+                    if note and 'college_id' in note:
+                        college_id = note['college_id']
+                except Exception:
+                    pass
+            elif user_id:
+                try:
+                    from utils.user_profiles import UserProfilesDB
+                    user = UserProfilesDB().get_user_profile(user_id)
+                    if user and 'college_id' in user:
+                        college_id = user['college_id']
+                except Exception:
+                    pass
+            if not college_id:
+                try:
+                    from utils.firestore_db import get_default_college_department_subject_ids
+                    college_id = get_default_college_department_subject_ids()['college_id']
+                except Exception:
+                    college_id = None
             event_data = {
                 'event_id': event_id,
                 'action_type': action_type,
                 'user_id': user_id,
                 'note_id': note_id,
+                'college_id': college_id,
                 'timestamp': firestore.SERVER_TIMESTAMP,
                 'metadata': metadata or {}
             }
-            
             self.db.collection(self.analytics_collection).document(event_id).set(event_data)
             return True
         except Exception as e:
