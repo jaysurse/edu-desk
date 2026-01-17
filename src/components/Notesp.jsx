@@ -1,10 +1,98 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { FaHeart, FaRegHeart } from "react-icons/fa";
 
 const NotesPreview = ({ notes, deleteNote, downloadNote, selectedDept , user, loading}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [downloadingIds, setDownloadingIds] = useState(new Set());
+  const [favoritedNotes, setFavoritedNotes] = useState(new Set());
+  const [likingIds, setLikingIds] = useState(new Set());
+
+  const API_BASE = import.meta.env.DEV ? "http://localhost:5000" : "https://edudesk.onrender.com";
 
   const allNotes = notes;
+
+  // Fetch user's favorites on mount
+  useEffect(() => {
+    if (user) {
+      fetchFavorites();
+    }
+  }, [user]);
+
+  const fetchFavorites = async () => {
+    if (!user) return;
+    
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch(`${API_BASE}/api/community/favorites`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const favoriteIds = new Set(data.favorites?.map(f => f.id) || []);
+        setFavoritedNotes(favoriteIds);
+      }
+    } catch (error) {
+      console.error("Error fetching favorites:", error);
+    }
+  };
+
+  const handleLike = async (noteId) => {
+    if (!user) {
+      alert("Please sign in to like notes!");
+      return;
+    }
+
+    setLikingIds((prev) => new Set([...prev, noteId]));
+
+    try {
+      const idToken = await user.getIdToken();
+      const isFavorited = favoritedNotes.has(noteId);
+
+      if (isFavorited) {
+        // Unlike
+        const response = await fetch(`${API_BASE}/api/community/favorites/${noteId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        });
+
+        if (response.ok) {
+          setFavoritedNotes((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(noteId);
+            return newSet;
+          });
+        }
+      } else {
+        // Like
+        const response = await fetch(`${API_BASE}/api/community/favorites`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ note_id: noteId }),
+        });
+
+        if (response.ok) {
+          setFavoritedNotes((prev) => new Set([...prev, noteId]));
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      alert("Failed to update favorite. Please try again.");
+    } finally {
+      setLikingIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(noteId);
+        return newSet;
+      });
+    }
+  };
 
   const filteredNotes = allNotes.filter((note) => {
     const matchesSearch =
@@ -100,9 +188,9 @@ const NotesPreview = ({ notes, deleteNote, downloadNote, selectedDept , user, lo
                 </p>
               </div>
 
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <button
-                  className={`px-4 py-2 rounded transition ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded transition ${
                     downloadingIds.has(note.id)
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700"
@@ -112,6 +200,27 @@ const NotesPreview = ({ notes, deleteNote, downloadNote, selectedDept , user, lo
                 >
                   {downloadingIds.has(note.id) ? "Downloading..." : "Download"}
                 </button>
+
+                {user && (
+                  <button
+                    className={`p-2 rounded transition ${
+                      likingIds.has(note.id)
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : favoritedNotes.has(note.id)
+                        ? "bg-red-500 hover:bg-red-600"
+                        : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500"
+                    } ${favoritedNotes.has(note.id) ? "text-white" : "text-gray-700 dark:text-gray-300"}`}
+                    onClick={() => handleLike(note.id)}
+                    disabled={likingIds.has(note.id)}
+                    title={favoritedNotes.has(note.id) ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    {favoritedNotes.has(note.id) ? (
+                      <FaHeart className="text-lg" />
+                    ) : (
+                      <FaRegHeart className="text-lg" />
+                    )}
+                  </button>
+                )}
 
                 {notes.some((n) => n.id === note.id) &&
                   user &&

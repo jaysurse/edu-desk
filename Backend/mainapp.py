@@ -4,29 +4,69 @@ from config import config
 import os
 import logging
 from routes.files import files_bp
+from routes.community import community_bp
+from routes.analytics_admin import analytics_bp
 from utils.auth import initialize_firebase
 from utils.firestore_db import initialize_firestore
 from utils.storage import initialize_storage, get_storage
 
 # Environment detection
-ENV = os.getenv("ENV", "local").lower()
-STORAGE_ROOT = "/var/data" if ENV == "production" else os.path.abspath("uploads")
+
+# Use environment variable for ENV and storage path
+ENV = os.getenv("FLASK_ENV", "development").lower()
+STORAGE_ROOT = os.getenv("FILE_STORAGE_PATH", os.path.abspath("uploads"))
 os.makedirs(STORAGE_ROOT, exist_ok=True)
-# Export for helper modules
 os.environ["FILE_STORAGE_PATH"] = STORAGE_ROOT
 
 logger = logging.getLogger(__name__)
 
+# Initialize Flask-Mail if available
+try:
+    from utils.notifications import initialize_mail
+    MAIL_AVAILABLE = True
+except ImportError:
+    MAIL_AVAILABLE = False
+    logger.warning("Flask-Mail not available, email notifications disabled")
+
 
 def create_app(config_name=None):
+        # Global error handlers
+        @app.errorhandler(400)
+        def handle_400(e):
+            return {"success": False, "data": None, "error": "Bad request"}, 400
+
+        @app.errorhandler(401)
+        def handle_401(e):
+            return {"success": False, "data": None, "error": "Unauthorized"}, 401
+
+        @app.errorhandler(403)
+        def handle_403(e):
+            return {"success": False, "data": None, "error": "Forbidden"}, 403
+
+        @app.errorhandler(404)
+        def handle_404(e):
+            return {"success": False, "data": None, "error": "Not found"}, 404
+
+        @app.errorhandler(500)
+        def handle_500(e):
+            return {"success": False, "data": None, "error": "Internal server error"}, 500
     if config_name is None:
         config_name = os.environ.get("FLASK_ENV", "development")
 
     app = Flask(__name__)
-    app.config.from_object(config[config_name])  # Use the dictionary
-
+    app.config.from_object(config[config_name])
     app.config["ENVIRONMENT"] = ENV
     app.config["FILE_STORAGE_PATH"] = STORAGE_ROOT
+    
+    # Configure Flask-Mail
+    if MAIL_AVAILABLE:
+        app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+        app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+        app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+        app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+        app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+        app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+        app.config['FRONTEND_URL'] = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 
     print(f"ENV: {ENV}")
     print(f"Storage path: {STORAGE_ROOT}")
@@ -37,6 +77,7 @@ def create_app(config_name=None):
         resources={
             r"/api/*": {
                 "origins": app.config["CORS_ORIGINS"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "allow_headers": ["Content-Type", "Authorization"],
                 "supports_credentials": True,
             }
@@ -78,9 +119,21 @@ def create_app(config_name=None):
             # Uncomment to exit if storage is critical
             # import sys
             # sys.exit(1)
+    
+    # Initialize Flask-Mail
+    if MAIL_AVAILABLE:
+        with app.app_context():
+            try:
+                initialize_mail(app)
+                print("✅ Email notifications initialized successfully")
+            except Exception as e:
+                print(f"⚠️  Email configuration incomplete: {e}")
+                print("   Email notifications will be disabled")
 
     # Register blueprints
     app.register_blueprint(files_bp, url_prefix="/api/files")
+    app.register_blueprint(community_bp, url_prefix="/api/community")
+    app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
 
     # Health check endpoint
     @app.route("/health")

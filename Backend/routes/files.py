@@ -1,10 +1,15 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from utils.helpers import allowed_file, get_file_size 
 from utils.auth import require_authentication, require_authentication_optional
 from utils.storage import get_storage 
 from utils.firestore_db import get_firestore_db
 from utils.usage_db import get_usage_tracker, track_usage
 from werkzeug.utils import secure_filename
+import zipfile
+import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 files_bp = Blueprint('files', __name__)
 
@@ -18,53 +23,60 @@ def upload_file(current_user):
         for field in required_fields:
             if field not in request.form or not request.form[field].strip():
                 return jsonify({
-                    'error': f'Missing required field: {field}',
-                    'code': 'MISSING_FIELDS'
+                    "success": False,
+                    "data": None,
+                    "error": f"Missing required field: {field}"
                 }), 400
-        
+
         if 'file' not in request.files:
             return jsonify({
-                'error': 'No file uploaded',
-                'code': 'NO_FILE'
+                "success": False,
+                "data": None,
+                "error": "No file uploaded"
             }), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({
-                'error': 'No file selected',
-                'code': 'NO_FILE_SELECTED'
+                "success": False,
+                "data": None,
+                "error": "No file selected"
             }), 400
-        
+
         sanitized_filename = secure_filename(file.filename)
         if not sanitized_filename:
             return jsonify({
-                'error': 'Invalid filename',
-                'code': 'INVALID_FILENAME'
+                "success": False,
+                "data": None,
+                "error": "Invalid filename"
             }), 400
-        
+
+        # Only allow PDF
         if not allowed_file(sanitized_filename):
             return jsonify({
-                'error': 'File type not allowed. Only PDF, DOC, DOCX, and TXT files are supported.',
-                'code': 'INVALID_FILE_TYPE'
+                "success": False,
+                "data": None,
+                "error": "File type not allowed. Only PDF files are supported."
             }), 400
-        
+
         file_size = get_file_size(file)
-        max_size = 10 * 1024 * 1024  # 10MB
+        max_size = current_app.config.get('MAX_CONTENT_LENGTH', 10 * 1024 * 1024)
         if file_size > max_size:
             return jsonify({
-                'error': 'File size exceeds 10MB limit',
-                'code': 'FILE_TOO_LARGE'
+                "success": False,
+                "data": None,
+                "error": f"File size exceeds {max_size // (1024*1024)}MB limit"
             }), 400
-        
+
         uploader = request.form.get('uploader', '').strip()
         if not uploader:
             uploader = current_user.get('name') or current_user.get('email', 'Anonymous')
-        
+
         print(f"📤 Starting upload for: {sanitized_filename}")
-        
+
         storage = get_storage()
         upload_result = storage.upload_file(file, sanitized_filename)
-        
+
         note_data = {
             'title': request.form['title'].strip(),
             'subject': request.form['subject'],
@@ -81,28 +93,32 @@ def upload_file(current_user):
             'bucket_name': upload_result.get('bucket_name'),
             'storage_path': upload_result.get('storage_path'),
         }
-        
+
         firestore_db = get_firestore_db()
         note_id = firestore_db.create_note(note_data)
-        
+
         note_data['id'] = note_id
-        
+
         print(f"✅ Upload completed successfully: {note_id}")
-        
+
         tracker = get_usage_tracker()
-        
+
         return jsonify({
-            'message': 'File uploaded successfully',
-            'note': note_data,
-            'usage_stats': tracker.get_usage_stats()
+            "success": True,
+            "data": {
+                "note": note_data,
+                "usage_stats": tracker.get_usage_stats()
+            },
+            "error": None
         }), 201
-        
+
     except Exception as e:
         current_app.logger.error(f"Upload error: {str(e)}")
         print(f"❌ Upload error: {str(e)}")
         return jsonify({
-            'error': 'Internal server error occurred during upload',
-            'code': 'INTERNAL_ERROR',
+            "success": False,
+            "data": None,
+            "error": "Internal server error occurred during upload"
         }), 500
 
 @files_bp.route('/notes', methods=['GET'])
@@ -129,17 +145,21 @@ def get_notes(current_user=None):
             notes = firestore_db.get_all_notes(limit)
         
         return jsonify({
-            'notes': notes,
-            'count': len(notes),
-            'user_authenticated': current_user is not None,
-            'user_id': current_user['uid'] if current_user else None
+            "success": True,
+            "data": {
+                'notes': notes,
+                'count': len(notes),
+                'user_authenticated': current_user is not None,
+                'user_id': current_user['uid'] if current_user else None
+            },
+            "error": None
         }), 200
-        
     except Exception as e:
         current_app.logger.error(f"Get notes error: {str(e)}")
         return jsonify({
-            'error': 'Failed to retrieve notes',
-            'code': 'FETCH_ERROR',
+            "success": False,
+            "data": None,
+            "error": "Failed to retrieve notes"
         }), 500
 
 @files_bp.route('/download/<note_id>', methods=['GET'])
@@ -153,8 +173,9 @@ def download_file(note_id):
         
         if not note:
             return jsonify({
-                'error': 'Note not found',
-                'code': 'NOTE_NOT_FOUND'
+                "success": False,
+                "data": None,
+                "error": "Note not found"
             }), 404
         
         # Increment download count
@@ -166,8 +187,9 @@ def download_file(note_id):
         
         if not file_content:
             return jsonify({
-                'error': 'Failed to retrieve file',
-                'code': 'FILE_RETRIEVAL_ERROR'
+                "success": False,
+                "data": None,
+                "error": "Failed to retrieve file"
             }), 500
         
         from flask import Response
@@ -188,8 +210,9 @@ def download_file(note_id):
     except Exception as e:
         current_app.logger.error(f"Download error: {str(e)}")
         return jsonify({
-            'error': 'Internal server error during download',
-            'code': 'INTERNAL_ERROR'
+            "success": False,
+            "data": None,
+            "error": "Internal server error during download"
         }), 500
 
 @files_bp.route('/delete/<note_id>', methods=['DELETE'])
@@ -204,15 +227,16 @@ def delete_note(current_user, note_id):
         
         if not note:
             return jsonify({
-                'error': 'Note not found',
-                'code': 'NOTE_NOT_FOUND'
+                "success": False,
+                "data": None,
+                "error": "Note not found"
             }), 404
-        
         # Check if the current user is the owner of the note
         if note['uploaded_by'] != current_user['uid']:
             return jsonify({
-                'error': 'You can only delete your own notes',
-                'code': 'UNAUTHORIZED_DELETE'
+                "success": False,
+                "data": None,
+                "error": "You can only delete your own notes"
             }), 403
         
         print(f"🗑️ Deleting note: {note_id}")
@@ -412,3 +436,133 @@ def get_usage_info(current_user=None):
             'error': 'Failed to retrieve usage information',
             'code': 'USAGE_INFO_ERROR',
         }), 500
+
+
+# ======================== BULK OPERATIONS ========================
+
+@files_bp.route('/bulk/delete', methods=['POST'])
+@require_authentication
+@track_usage('delete')
+def bulk_delete(current_user):
+    """Delete multiple notes at once (max 50)"""
+    try:
+        data = request.get_json()
+        note_ids = data.get('note_ids', [])
+        
+        if not note_ids:
+            return jsonify({'error': 'No note IDs provided'}), 400
+        
+        if len(note_ids) > 50:
+            return jsonify({'error': 'Maximum 50 notes per bulk delete'}), 400
+        
+        db = get_firestore_db()
+        storage = get_storage()
+        
+        deleted = []
+        failed = []
+        
+        for note_id in note_ids:
+            try:
+                note = db.get_note(note_id)
+                
+                if not note:
+                    failed.append({'id': note_id, 'reason': 'Note not found'})
+                    continue
+                
+                # Verify ownership
+                if note.get('uploaded_by') != current_user['uid']:
+                    failed.append({'id': note_id, 'reason': 'Not authorized'})
+                    continue
+                
+                # Delete file from storage
+                file_key = note.get('file_key')
+                if file_key and storage:
+                    try:
+                        storage.delete_file(file_key)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete file {file_key}: {e}")
+                
+                # Delete from Firestore
+                if db.delete_note(note_id):
+                    deleted.append(note_id)
+                else:
+                    failed.append({'id': note_id, 'reason': 'Database delete failed'})
+                
+            except Exception as e:
+                logger.error(f"Failed to delete note {note_id}: {e}")
+                failed.append({'id': note_id, 'reason': str(e)})
+        
+        return jsonify({
+            'success': True,
+            'deleted': deleted,
+            'failed': failed,
+            'total_deleted': len(deleted),
+            'total_failed': len(failed)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Bulk delete error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@files_bp.route('/bulk/export', methods=['POST'])
+@require_authentication
+def bulk_export(current_user):
+    """Export multiple notes as ZIP (max 20)"""
+    try:
+        data = request.get_json()
+        note_ids = data.get('note_ids', [])
+        
+        if not note_ids:
+            return jsonify({'error': 'No note IDs provided'}), 400
+        
+        if len(note_ids) > 20:
+            return jsonify({'error': 'Maximum 20 notes per bulk export'}), 400
+        
+        db = get_firestore_db()
+        storage = get_storage()
+        
+        # Create ZIP file in memory
+        memory_file = io.BytesIO()
+        
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            exported_count = 0
+            
+            for note_id in note_ids:
+                try:
+                    note = db.get_note(note_id)
+                    
+                    if not note:
+                        continue
+                    
+                    file_key = note.get('file_key')
+                    
+                    if file_key and storage:
+                        # Read file content
+                        file_data = storage.read_file(file_key)
+                        if file_data:
+                            # Add to ZIP with original filename
+                            filename = note.get('file_name', f'note_{note_id}.pdf')
+                            zf.writestr(filename, file_data)
+                            exported_count += 1
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to export note {note_id}: {e}")
+                    continue
+        
+        if exported_count == 0:
+            return jsonify({'error': 'No files could be exported'}), 404
+        
+        # Send ZIP file
+        memory_file.seek(0)
+        
+        return send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='notes_export.zip'
+        )
+        
+    except Exception as e:
+        logger.error(f"Bulk export error: {e}")
+        return jsonify({'error': str(e)}), 500
