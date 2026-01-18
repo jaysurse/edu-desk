@@ -3,13 +3,13 @@ import { getAuth } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 import { GoogleAuthProvider } from "firebase/auth";
 const firebaseConfig = {
-  apiKey: "AIzaSyC0KkyPgbGlDe_EJJ6gNIY5Nhl_ZGFK8eo",
-  authDomain: "edudesk-f9dfe.firebaseapp.com",
-  projectId: "edudesk-f9dfe",
-  storageBucket: "edudesk-f9dfe.firebasestorage.app",
-  messagingSenderId: "365152576583",
-  appId: "1:365152576583:web:911fe2f409a87f88a37d62",
-  measurementId: "G-L1DSYSV3V9"
+  apiKey: "AIzaSyDxhSUBbE0Si5TprCwlm-RPgNMINwuKBf4",
+  authDomain: "edu-desk-9f97d.firebaseapp.com",
+  projectId: "edu-desk-9f97d",
+  storageBucket: "edu-desk-9f97d.firebasestorage.app",
+  messagingSenderId: "821521845767",
+  appId: "1:821521845767:web:bb6428f38ceba46448e4a2",
+  measurementId: "G-NZ9SGXYXLT"
 };
 
 // Initialize Firebase

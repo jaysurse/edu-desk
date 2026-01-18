@@ -10,9 +10,17 @@ import About from "./components/About";
 import UploadForm from "./components/UploadF";
 import AuthForm from "./components/AuthForm";
 import Footer from "./components/Footer";
+import RatingsComments from "./components/RatingsComments";
+import FavoritesCollections from "./components/FavoritesCollections";
+import UserProfile from "./components/UserProfile";
+import UserDashboard from "./components/UserDashboard";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import { doSignOut } from "./firebase/auth";
 
-  const API_BASE = "https://edudesk.onrender.com";
+// Use localhost:5000 for development, production URL for deployed app
+const API_BASE = import.meta.env.DEV 
+  ? "http://localhost:5000" 
+  : "https://edudesk.onrender.com";
 
 function App() {
   // UI State
@@ -21,6 +29,7 @@ function App() {
   );
   const [showLogin, setShowLogin] = useState(false);
   const [selectedDept, setSelectedDept] = useState("All");
+  const [activeSection, setActiveSection] = useState("home");
 
   // Auth State
   const [user, setUser] = useState(null);
@@ -278,6 +287,12 @@ useEffect(() => {
         onToggleTheme={onToggleTheme}  
         selectedDept={selectedDept}
         setSelectedDept={setSelectedDept}
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
+        API_BASE={API_BASE}
+        notes={notes}
+        deleteNote={deleteNote}
+        downloadNote={downloadNote}
       />
 
       {/* Auth Modal */}
@@ -319,14 +334,24 @@ useEffect(() => {
           onLoginClick={() => setShowLogin(true)}
         />
       </div>
-      
-      <div id="about">
-        <About />
-      </div>
-      
-      <div id="contact">
-        <Footer />
-      </div>
+
+      {activeSection !== "profile" && (
+        <>
+          <div id="analytics">
+            <AnalyticsDashboard 
+              API_BASE={API_BASE}
+            />
+          </div>
+          
+          <div id="about">
+            <About />
+          </div>
+          
+          <div id="contact">
+            <Footer />
+          </div>
+        </>
+      )}
     </>
   );
 }

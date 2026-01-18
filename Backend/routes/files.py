@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from utils.helpers import allowed_file, get_file_size 
 from utils.auth import require_authentication, require_authentication_optional
-from utils.storage import get_r2_storage 
+from utils.storage import get_storage 
 from utils.firestore_db import get_firestore_db
 from utils.usage_db import get_usage_tracker, track_usage
 from werkzeug.utils import secure_filename
@@ -62,8 +62,8 @@ def upload_file(current_user):
         
         print(f"📤 Starting upload for: {sanitized_filename}")
         
-        r2_storage = get_r2_storage()
-        upload_result = r2_storage.upload_file(file, sanitized_filename)
+        storage = get_storage()
+        upload_result = storage.upload_file(file, sanitized_filename)
         
         note_data = {
             'title': request.form['title'].strip(),
@@ -72,13 +72,14 @@ def upload_file(current_user):
             'department': request.form['department'],
             'file_name': sanitized_filename,
             'file_key': upload_result['file_key'],
-            'file_url': upload_result['file_url'],   
+            'file_url': upload_result.get('file_url'),   
             'file_size': upload_result['file_size'],
             'content_type': upload_result['content_type'],
             'uploaded_by': current_user['uid'],       
             'uploader_email': current_user.get('email'),
             'download_count': 0,
-            'bucket_name': upload_result['bucket_name']
+            'bucket_name': upload_result.get('bucket_name'),
+            'storage_path': upload_result.get('storage_path'),
         }
         
         firestore_db = get_firestore_db()
@@ -159,9 +160,9 @@ def download_file(note_id):
         # Increment download count
         firestore_db.increment_download_count(note_id)
         
-        # Get file content from R2
-        r2_storage = get_r2_storage()
-        file_content = r2_storage.get_file_content(note['file_key'])
+        # Get file content from storage backend
+        storage = get_storage()
+        file_content = storage.get_file_content(note['file_key'])
         
         if not file_content:
             return jsonify({
@@ -216,9 +217,9 @@ def delete_note(current_user, note_id):
         
         print(f"🗑️ Deleting note: {note_id}")
         
-        # Delete file from R2
-        r2_storage = get_r2_storage()
-        file_deleted = r2_storage.delete_file(note['file_key'])
+        # Delete file from storage
+        storage = get_storage()
+        file_deleted = storage.delete_file(note['file_key'])
         
         if not file_deleted:
             print(f"⚠️ Warning: Could not delete file from R2: {note['file_key']}")

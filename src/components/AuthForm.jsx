@@ -187,7 +187,7 @@ const AuthForm = ({ onLogin, onClose }) => {
           sanitizedPassword
         );
 
-        if (!userCredential.user.emailVerified) {
+        if (userCredential.user.emailVerified) {
           setError(
             "Please verify your email before logging in. Check your inbox for the verification link."
           );
